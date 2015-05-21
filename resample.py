@@ -34,10 +34,10 @@ import pandas as pd
 
 from scikits.audiolab import wavread
 
-from sklearn.utils import check_array, warn_if_not_float
-from sklearn.utils.validation import check_is_fitted
+
+
 from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.base import TransformerMixin, BaseEstimator
+
 from sklearn.covariance import OAS
 import sklearn.manifold as manifold
 
@@ -45,63 +45,6 @@ import spectral
 import textgrid
 
 
-class ZCA(BaseEstimator, TransformerMixin):
-    def __init__(self, regularization=1e-6, copy=False):
-        self.regularization = regularization
-        self.copy = copy
-
-    def fit(self, X, y=None):
-        """Compute the mean, whitening and dewhitening matrices.
-
-        Parameters
-        ----------
-        X : array-like with shape [n_samples, n_features]
-            The data used to compute the mean, whitening and dewhitening
-            matrices.
-        """
-        X = check_array(X, accept_sparse=None, copy=self.copy,
-                        ensure_2d=True)
-        if warn_if_not_float(X, estimator=self):
-            X = X.astype(np.float)
-        self.mean_ = X.mean(axis=0)
-        X_ = X - self.mean_
-        cov = np.dot(X_.T, X_) / (X_.shape[0]-1)
-        U, S, _ = linalg.svd(cov)
-        s = np.sqrt(S.clip(self.regularization))
-        s_inv = np.diag(1./s)
-        s = np.diag(s)
-        self.whiten_ = np.dot(np.dot(U, s_inv), U.T)
-        self.dewhiten_ = np.dot(np.dot(U, s), U.T)
-        return self
-
-    def transform(self, X, y=None, copy=None):
-        """Perform ZCA whitening
-
-        Parameters
-        ----------
-        X : array-like with shape [n_samples, n_features]
-            The data to whiten along the features axis.
-        """
-        check_is_fitted(self, 'mean_')
-        copy = copy if copy is not None else self.copy
-        if warn_if_not_float(X, estimator=self):
-            X = X.astype(np.float)
-        return np.dot(X - self.mean_, self.whiten_.T)
-
-    def inverse_transform(self, X, copy=None):
-        """Undo the ZCA transform and rotate back to the original
-        representation
-
-        Parameters
-        ----------
-        X : array-like with shape [n_samples, n_features]
-            The data to rotate back.
-        """
-        check_is_fitted(self, 'mean_')
-        copy = copy if copy is not None else self.copy
-        if warn_if_not_float(X, estimator=self):
-            X = X.astype(np.float)
-        return np.dot(X, self.dewhiten_) + self.mean_
 
 
 @contextmanager
@@ -178,6 +121,12 @@ def extract_cepstra(df, stimulus_dir, normalize='cmvn', window_shift=0.005):
     dict from string to ndarray
         MFCCs per file
     """
+    if normalize == 'zca':
+        try:
+            from zca import ZCA
+        except:
+            raise ValueError('could not import ZCA, use a different '
+                             'normalization method')
     mfcc_config = dict(fs=44100, window_length=0.025, window_shift=window_shift,
                        nfft=2048, scale='mel', nfilt=40, taper_filt=True,
                        deltas=False, do_dct=True, nceps=13, log_e=True,
