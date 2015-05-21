@@ -8,7 +8,7 @@
 # Maarten Versteegh
 # github.com/mwv
 # maartenversteegh AT gmail DOT com
-#
+# 
 # Licensed under GPLv3
 # ------------------------------------
 """dnn:
@@ -191,14 +191,6 @@ def create_iter_func(dataset, dataset_all, output_layer,
         },
     )
 
-    iter_all = theano.function(
-        [batch_index],[loss_eval, accuracy],
-        givens={
-            X_batch: dataset_all['X'][batch_slice],
-            y_batch: dataset_all['y'][batch_slice],
-        },
-    )
-
     return dict(
         train=iter_train,
         valid=iter_valid,
@@ -303,36 +295,9 @@ def get_new_representations(iter_funcs, dataset_all, last):
        new phone representations.
     """ 
     output = lasagne.layers.get_output(last, dataset_all['X'])
+    print output.shape.eval()
+    #print output.eval()
     return output
-   
-
-#def build_model2(input_dim, output_dim,
-#                hidden_layers=(100, 100),
-#                batch_size=100, dropout=False):
-#    l_in = InputLayer(shape=(batch_size, input_dim))
-#    last = l_in
-#    for size in hidden_layers:
-#        l_hidden = DenseLayer(last, num_units=size,
-#                              # nonlinearity=T.nnet.hard_sigmoid,
-#                             nonlinearity=lasagne.nonlinearities.leaky_rectify,
-#                              W=lasagne.init.GlorotUniform())
-#        if dropout:
-#            l_dropout = DropoutLayer(l_hidden, p=0.5)
-#            last = l_dropout
-#        else:
-#            last = l_hidden
-#    l_out = DenseLayer(last, num_units=output_dim, nonlinearity=softmax,
-#                       W=lasagne.init.GlorotUniform())
-#    return l_out
-
-#def hard_model()
-#    output_layer2 = build_model2(input_dim=representations['input_dim'], output_dim=dataset['output_dim'],
-#        batch_size=batch_size) 
-#    #something with regression = True
-#
-#    #build iter functions
-#    #train model
-#    #Do predictions
 
 if __name__ == '__main__':
     num_epochs=10 #return back to 1000
