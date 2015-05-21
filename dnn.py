@@ -46,6 +46,9 @@ def train_valid_test_split(X, y, test_prop=0.1, valid_prop=0.2):
     return X_train, y_train, X_valid, y_valid, X_test, y_test
 
 def load_data(fname, test_prop=1/16, valid_prop=5/16, register='both',testsubset = False):
+    """
+    If testsubset = True, load_data returns only a small dataset so code can be tested without GPU
+    """
     f = np.load(fname)
     X, y, labels = f['X'], f['y'], f['labels']
     if register in ['IDS', 'ADS']:
@@ -102,8 +105,11 @@ def load_data(fname, test_prop=1/16, valid_prop=5/16, register='both',testsubset
 
 
 def build_model(input_dim, output_dim,
-                hidden_layers=(100, 100),
-                batch_size=100, dropout=False):
+                hidden_layers=(100,100),
+                batch_size=100, dropout=False, bottleneck = True, bsize = 50):
+    """
+    If bottleneck = True, a bottleneck hiddenlayer of with bsize nodes is added
+    """
     l_in = InputLayer(shape=(batch_size, input_dim))
     last = l_in
     for size in hidden_layers:
@@ -116,6 +122,14 @@ def build_model(input_dim, output_dim,
             last = l_dropout
         else:
             last = l_hidden
+    
+    if bottleneck:
+        l_bottleneck = DenseLayer(last, num_units=bsize,
+                              # nonlinearity=T.nnet.hard_sigmoid,
+                              nonlinearity=lasagne.nonlinearities.leaky_rectify,
+                              W=lasagne.init.GlorotUniform())
+        last = l_bottleneck
+
     l_out = DenseLayer(last, num_units=output_dim, nonlinearity=softmax,
                        W=lasagne.init.GlorotUniform())
     return dict(
@@ -194,8 +208,7 @@ def create_iter_func(dataset, dataset_all, output_layer,
     return dict(
         train=iter_train,
         valid=iter_valid,
-        test=iter_test,
-        all= iter_all,
+        test=iter_test
     )
 
 def train(iter_funcs, dataset, batch_size=300, test_every=100):
@@ -243,9 +256,11 @@ def train(iter_funcs, dataset, batch_size=300, test_every=100):
 
 
 def load_all_data(fname, register='both',testsubset = False):
-    """Creates dataset for generating new phone representations, without seperating into
-     different training, validation and testing tests
-       epoch.
+    """ 
+        Creates dataset for generating new phone representations, without seperating into
+        different training, validation and testing tests
+        epoch.
+        If testsubset = True, load_data returns only a small dataset so code can be tested without GPU
     """
     f = np.load(fname)
     X, y, labels = f['X'], f['y'], f['labels']
@@ -290,14 +305,41 @@ def load_all_data(fname, register='both',testsubset = False):
         labels=labels
     )
 
-def get_new_representations(iter_funcs, dataset_all, last):
+def get_new_representations(iter_funcs, dataset_all, last, valid_prop, test_prop):
     """Run `dataset_all` through the model and save the second-to-last layer as
        new phone representations.
+       Representations are divided into train, test and validation sets 
+       TODO: check if X is correct
     """ 
     output = lasagne.layers.get_output(last, dataset_all['X'])
     print output.shape.eval()
+    labels = dataset_all['labels']
     #print output.eval()
-    return output
+    
+    X = output.shape.eval()
+    y = dataset_all['labels']
+
+    nclasses = np.unique(y).shape[0]
+    nfeatures = X[1]
+
+    X_train, y_train, X_valid, y_valid, X_test, y_test = \
+        train_valid_test_split(X, y,
+                              test_prop=test_prop, valid_prop=valid_prop)
+
+    return dict(
+        X_train=theano.shared(X_train),
+        y_train=theano.shared(y_train),
+        X_valid=theano.shared(X_valid),
+        y_valid=theano.shared(y_valid),
+        X_test=theano.shared(X_test),
+        y_test=theano.shared(y_test),
+        num_examples_train=X_train.shape[0],
+        num_examples_valid=X_valid.shape[0],
+        num_examples_test=X_test.shape[0],
+        input_dim=nfeatures,
+        output_dim=nclasses,
+        labels=labels
+    )
 
 if __name__ == '__main__':
     num_epochs=10 #return back to 1000
@@ -307,7 +349,7 @@ if __name__ == '__main__':
     dataset_all = load_all_data('/Users/ingeborg/Desktop/mfcc.npz', register='IDS',testsubset = True)
     output_layer = build_model(
         input_dim=dataset['input_dim'], output_dim=dataset['output_dim'],
-        batch_size=batch_size)
+        batch_size=batch_size, bottleneck = True, bsize = 50)
     iter_funcs = create_iter_func(dataset, dataset_all, output_layer['l_out'],
                                   batch_size=batch_size,
                                   learning_rate=0.1, momentum=0.9)
@@ -332,4 +374,4 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         pass
 
-    representations = get_new_representations(iter_funcs,dataset_all,output_layer['last'])
+    representations = get_new_representations(iter_funcs,dataset_all,output_layer['last'], valid_prop = 4/16, test_prop = 2/16)
