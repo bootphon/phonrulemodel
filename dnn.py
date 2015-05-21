@@ -22,9 +22,9 @@ import time
 
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
-import theano
+import theano  
 import theano.tensor as T
-import lasagne
+import lasagne 
 from lasagne.layers import DenseLayer, InputLayer, DropoutLayer
 from lasagne.nonlinearities import rectify, softmax, sigmoid
 
@@ -116,7 +116,7 @@ def build_model(input_dim, output_dim,
                        W=lasagne.init.GlorotUniform())
     return l_out
 
-def create_iter_func(dataset, output_layer,
+def create_iter_func(dataset, dataset_all, output_layer,
                      X_tensor_type=T.matrix,
                      batch_size=300,
                      learning_rate=0.01,
@@ -184,10 +184,19 @@ def create_iter_func(dataset, output_layer,
         },
     )
 
+    iter_all = theano.function(
+        [batch_index],[loss_eval, accuracy],
+        givens={
+            X_batch: dataset_all['X'][batch_slice],
+            y_batch: dataset_all['y'][batch_slice],
+        },
+    )
+
     return dict(
         train=iter_train,
         valid=iter_valid,
         test=iter_test,
+        all= iter_all,
     )
 
 def train(iter_funcs, dataset, batch_size=300, test_every=100):
@@ -234,15 +243,105 @@ def train(iter_funcs, dataset, batch_size=300, test_every=100):
         }
 
 
+def load_all_data(fname, register='both'):
+    """Creates dataset for generating new phone representations, without seperating into
+     different training, validation and testing tests
+       epoch.
+    """
+    f = np.load(fname)
+    X, y, labels = f['X'], f['y'], f['labels']
+    if register in ['IDS', 'ADS']:
+        sel_ixs = np.in1d(y, np.nonzero(labels[:, 1]==register))
+        X = X[sel_ixs]
+        y = y[sel_ixs]
+    elif register == 'both':
+        ix2phone = dict(enumerate(labels[:, 0]))
+        phones = sorted(set(ix2phone.values()))
+        phone2newix = {p:ix for ix, p in enumerate(phones)}
+        y = np.array([phone2newix[ix2phone[i]] for i in y])
+        # phone2ix = {k: ix for ix, k in enumerate(labels[:, 0])}
+    else:
+        raise ValueError('invalid option for register: {0}'.format(register))
+
+    oldix2newix = {old_ix:new_ix for new_ix, old_ix in enumerate(np.unique(y))}
+    y = np.array([oldix2newix[i] for i in y])
+
+    print 'number of labels: {0}'.format(len(np.unique(y)))
+
+    X = StandardScaler().fit_transform(X)
+    X = MinMaxScaler(feature_range=(0,1)).fit_transform(X)
+    print X.min(), X.max()
+    X = X.astype(theano.config.floatX)
+    y = y.astype('int32')
+    nclasses = np.unique(y).shape[0]
+    nfeatures = X.shape[1]
+ 
+    print X.shape, y.shape
+   
+    return dict(
+        X=theano.shared(X),
+        y=theano.shared(y),
+        num_examples=X.shape[0],
+        input_dim=nfeatures,
+        output_dim=nclasses,
+        labels=labels
+    )
+
+def get_new_representations(iter_funcs, dataset_all)
+    """Run `dataset_all` through the model and save the second-to-last layer as
+        new phone representations.
+    """ 
+    num_batches = 1
+    #X = dataset_all['X']
+    #y = lasagne.layers.get_output(last, X)
+    #f = theano.function([X],y)
+
+    for epoch in itertools.count(1):
+        batch_all_loss, batch_all_accuracy = iter_funcs['all']
+        representations = lasagne.layers.get_output(last)
+        yield {
+            'representations': ?
+        }
+    }
+
+def build_model2(input_dim, output_dim,
+                hidden_layers=(100, 100),
+                batch_size=100, dropout=False):
+    l_in = InputLayer(shape=(batch_size, input_dim))
+    last = l_in
+    for size in hidden_layers:
+        l_hidden = DenseLayer(last, num_units=size,
+                              # nonlinearity=T.nnet.hard_sigmoid,
+                              nonlinearity=lasagne.nonlinearities.leaky_rectify,
+                              W=lasagne.init.GlorotUniform())
+        if dropout:
+            l_dropout = DropoutLayer(l_hidden, p=0.5)
+            last = l_dropout
+        else:
+            last = l_hidden
+    l_out = DenseLayer(last, num_units=output_dim, nonlinearity=softmax,
+                       W=lasagne.init.GlorotUniform())
+    return l_out
+
+def hard_model()
+    output_layer2 = build_model2(input_dim=representations['input_dim'], output_dim=dataset['output_dim'],
+        batch_size=batch_size) 
+    #something with regression = True
+
+    #build iter functions
+    #train model
+    #Do predictions
+
 if __name__ == '__main__':
     num_epochs=1000
     batch_size=1000
-    dataset = load_data('samples_disp2.0_shrunk0.0_small.npz',
+    dataset = load_data('/Users/ingeborg/Desktop/mfcc.npz',
                         valid_prop=4/16, test_prop=2/16, register='IDS')
+    dataset_all = load_all_data('/Users/ingeborg/Desktop/mfcc.npz', register='IDS')')
     output_layer = build_model(
         input_dim=dataset['input_dim'], output_dim=dataset['output_dim'],
         batch_size=batch_size)
-    iter_funcs = create_iter_func(dataset, output_layer,
+    iter_funcs = create_iter_func(dataset, dataset_all, output_layer,
                                   batch_size=batch_size,
                                   learning_rate=0.1, momentum=0.9)
     test_every = 100
@@ -265,3 +364,7 @@ if __name__ == '__main__':
                 break
     except KeyboardInterrupt:
         pass
+
+    #get_new_representations(iter_funcs,dataset_all)
+
+    #hard_model()
