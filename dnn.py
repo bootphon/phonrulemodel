@@ -45,7 +45,7 @@ def train_valid_test_split(X, y, test_prop=0.1, valid_prop=0.2):
     X_train, y_train = X[test_cut:], y[test_cut:]
     return X_train, y_train, X_valid, y_valid, X_test, y_test
 
-def load_data(fname, test_prop=1/16, valid_prop=5/16, register='both'):
+def load_data(fname, test_prop=1/16, valid_prop=5/16, register='both',testsubset = False):
     f = np.load(fname)
     X, y, labels = f['X'], f['y'], f['labels']
     if register in ['IDS', 'ADS']:
@@ -73,6 +73,10 @@ def load_data(fname, test_prop=1/16, valid_prop=5/16, register='both'):
     y = y.astype('int32')
     nclasses = np.unique(y).shape[0]
     nfeatures = X.shape[1]
+
+    if testsubset:
+        X = X[1:10] 
+        y = y[1:10]
 
     X_train, y_train, X_valid, y_valid, X_test, y_test = \
         train_valid_test_split(X, y,
@@ -114,7 +118,10 @@ def build_model(input_dim, output_dim,
             last = l_hidden
     l_out = DenseLayer(last, num_units=output_dim, nonlinearity=softmax,
                        W=lasagne.init.GlorotUniform())
-    return l_out
+    return dict(
+        l_out = l_out,
+        last = last
+    )
 
 def create_iter_func(dataset, dataset_all, output_layer,
                      X_tensor_type=T.matrix,
@@ -243,7 +250,7 @@ def train(iter_funcs, dataset, batch_size=300, test_every=100):
         }
 
 
-def load_all_data(fname, register='both'):
+def load_all_data(fname, register='both',testsubset = False):
     """Creates dataset for generating new phone representations, without seperating into
      different training, validation and testing tests
        epoch.
@@ -275,7 +282,11 @@ def load_all_data(fname, register='both'):
     y = y.astype('int32')
     nclasses = np.unique(y).shape[0]
     nfeatures = X.shape[1]
- 
+    
+    if testsubset:
+        X = X[1:10] 
+        y = y[1:10]
+
     print X.shape, y.shape
    
     return dict(
@@ -287,61 +298,52 @@ def load_all_data(fname, register='both'):
         labels=labels
     )
 
-def get_new_representations(iter_funcs, dataset_all)
+def get_new_representations(iter_funcs, dataset_all, last):
     """Run `dataset_all` through the model and save the second-to-last layer as
-        new phone representations.
+       new phone representations.
     """ 
-    num_batches = 1
-    #X = dataset_all['X']
-    #y = lasagne.layers.get_output(last, X)
-    #f = theano.function([X],y)
+    output = lasagne.layers.get_output(last, dataset_all['X'])
+    return output
+   
 
-    for epoch in itertools.count(1):
-        batch_all_loss, batch_all_accuracy = iter_funcs['all']
-        representations = lasagne.layers.get_output(last)
-        yield {
-            'representations': ?
-        }
-    }
+#def build_model2(input_dim, output_dim,
+#                hidden_layers=(100, 100),
+#                batch_size=100, dropout=False):
+#    l_in = InputLayer(shape=(batch_size, input_dim))
+#    last = l_in
+#    for size in hidden_layers:
+#        l_hidden = DenseLayer(last, num_units=size,
+#                              # nonlinearity=T.nnet.hard_sigmoid,
+#                             nonlinearity=lasagne.nonlinearities.leaky_rectify,
+#                              W=lasagne.init.GlorotUniform())
+#        if dropout:
+#            l_dropout = DropoutLayer(l_hidden, p=0.5)
+#            last = l_dropout
+#        else:
+#            last = l_hidden
+#    l_out = DenseLayer(last, num_units=output_dim, nonlinearity=softmax,
+#                       W=lasagne.init.GlorotUniform())
+#    return l_out
 
-def build_model2(input_dim, output_dim,
-                hidden_layers=(100, 100),
-                batch_size=100, dropout=False):
-    l_in = InputLayer(shape=(batch_size, input_dim))
-    last = l_in
-    for size in hidden_layers:
-        l_hidden = DenseLayer(last, num_units=size,
-                              # nonlinearity=T.nnet.hard_sigmoid,
-                              nonlinearity=lasagne.nonlinearities.leaky_rectify,
-                              W=lasagne.init.GlorotUniform())
-        if dropout:
-            l_dropout = DropoutLayer(l_hidden, p=0.5)
-            last = l_dropout
-        else:
-            last = l_hidden
-    l_out = DenseLayer(last, num_units=output_dim, nonlinearity=softmax,
-                       W=lasagne.init.GlorotUniform())
-    return l_out
-
-def hard_model()
-    output_layer2 = build_model2(input_dim=representations['input_dim'], output_dim=dataset['output_dim'],
-        batch_size=batch_size) 
-    #something with regression = True
-
-    #build iter functions
-    #train model
-    #Do predictions
+#def hard_model()
+#    output_layer2 = build_model2(input_dim=representations['input_dim'], output_dim=dataset['output_dim'],
+#        batch_size=batch_size) 
+#    #something with regression = True
+#
+#    #build iter functions
+#    #train model
+#    #Do predictions
 
 if __name__ == '__main__':
-    num_epochs=1000
-    batch_size=1000
+    num_epochs=10 #return back to 1000
+    batch_size=1 #return back to 1000
     dataset = load_data('/Users/ingeborg/Desktop/mfcc.npz',
-                        valid_prop=4/16, test_prop=2/16, register='IDS')
-    dataset_all = load_all_data('/Users/ingeborg/Desktop/mfcc.npz', register='IDS')')
+                        valid_prop=4/16, test_prop=2/16, register='IDS',testsubset = True)
+    dataset_all = load_all_data('/Users/ingeborg/Desktop/mfcc.npz', register='IDS',testsubset = True)
     output_layer = build_model(
         input_dim=dataset['input_dim'], output_dim=dataset['output_dim'],
         batch_size=batch_size)
-    iter_funcs = create_iter_func(dataset, dataset_all, output_layer,
+    iter_funcs = create_iter_func(dataset, dataset_all, output_layer['l_out'],
                                   batch_size=batch_size,
                                   learning_rate=0.1, momentum=0.9)
     test_every = 100
@@ -365,6 +367,4 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         pass
 
-    #get_new_representations(iter_funcs,dataset_all)
-
-    #hard_model()
+    representations = get_new_representations(iter_funcs,dataset_all,output_layer['last'])
