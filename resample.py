@@ -17,34 +17,26 @@
 
 from __future__ import division
 
-import os
 import os.path as path
 import glob
-from collections import namedtuple, defaultdict
+from collections import namedtuple
 from itertools import chain, product
 import sys
 from time import time
 from contextlib import contextmanager
 
 import numpy as np
-from scipy import linalg
 from scipy.stats import multivariate_normal as mnorm
 
 import pandas as pd
 
 from scikits.audiolab import wavread
 
-
-
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-
+from sklearn.preprocessing import StandardScaler
 from sklearn.covariance import OAS
-import sklearn.manifold as manifold
 
 import spectral
 import textgrid
-
-
 
 
 @contextmanager
