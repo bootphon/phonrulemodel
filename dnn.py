@@ -354,4 +354,3 @@ if __name__ == '__main__':
     representations = get_new_representations(iter_funcs,dataset_all,output_layer['last'])
     filename = '/Users/ingeborg/Desktop/reprs.npz'
     np.savez(filename, X=representations['X'], y=representations['y'])
-        #scrhijf naar .npz file
