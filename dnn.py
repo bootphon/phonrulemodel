@@ -305,43 +305,17 @@ def load_all_data(fname, register='both',testsubset = False):
         labels=labels
     )
 
-def get_new_representations(iter_funcs, dataset, last, valid_prop, test_prop):
+def get_new_representations(iter_funcs, dataset_all, last):
     """Run `dataset_all` through the model and save the second-to-last layer as
-       new phone representations.
-       Representations are divided into train, test and validation sets 
-       TODO: check if X is correct
+       new phone representations
     """ 
-    X_train = lasagne.layers.get_output(last, dataset['X_train'])
-    X_test = lasagne.layers.get_output(last, dataset['X_test'])
-    X_valid = lasagne.layers.get_output(last, dataset['X_valid'])
-    y_train = dataset['y_train']
-    y_test = dataset['y_test']
-    y_valid = dataset['y_test']
-    
-    print 'content checks'
-    print X_train.eval()
-    print y_train.eval()
-    print X_valid.eval()
-    print y_valid.eval()
-    print X_test.eval()
-    print y_test.eval()
-    labels = dataset['labels']
-    nfeatures = X_train.shape[1]
-    nclasses = 16
-
+    output = lasagne.layers.get_output(last, dataset_all['X']).eval()
+    labels = dataset_all['labels']
+    #print output
+    #print labels
     return dict(
-        X_train=theano.shared(X_train),
-        y_train=theano.shared(y_train),
-        X_valid=theano.shared(X_valid),
-        y_valid=theano.shared(y_valid),
-        X_test=theano.shared(X_test),
-        y_test=theano.shared(y_test),
-        num_examples_train=X_train.shape[0],
-        num_examples_valid=X_valid.shape[0],
-        num_examples_test=X_test.shape[0],
-        input_dim=nfeatures,
-        output_dim=nclasses,
-        labels=labels
+        X = output,
+        y = labels   
     )
 
 if __name__ == '__main__':
@@ -377,4 +351,7 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         pass
 
-    representations = get_new_representations(iter_funcs,dataset,output_layer['last'], valid_prop = 4/16, test_prop = 2/16)
+    representations = get_new_representations(iter_funcs,dataset_all,output_layer['last'])
+    filename = '/Users/ingeborg/Desktop/reprs.npz'
+    np.savez(filename, X=representations['X'], y=representations['y'])
+        #scrhijf naar .npz file
