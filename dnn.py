@@ -78,8 +78,8 @@ def load_data(fname, test_prop=1/16, valid_prop=5/16, register='both',testsubset
     nfeatures = X.shape[1]
 
     if testsubset:
-        X = X[1:10] 
-        y = y[1:10]
+        X = X[1:17] 
+        y = y[1:17]
 
     X_train, y_train, X_valid, y_valid, X_test, y_test = \
         train_valid_test_split(X, y,
@@ -291,8 +291,8 @@ def load_all_data(fname, register='both',testsubset = False):
     nfeatures = X.shape[1]
     
     if testsubset:
-        X = X[1:10] 
-        y = y[1:10]
+        X = X[1:17] 
+        y = y[1:17]
 
     print X.shape, y.shape
    
@@ -305,26 +305,29 @@ def load_all_data(fname, register='both',testsubset = False):
         labels=labels
     )
 
-def get_new_representations(iter_funcs, dataset_all, last, valid_prop, test_prop):
+def get_new_representations(iter_funcs, dataset, last, valid_prop, test_prop):
     """Run `dataset_all` through the model and save the second-to-last layer as
        new phone representations.
        Representations are divided into train, test and validation sets 
        TODO: check if X is correct
     """ 
-    output = lasagne.layers.get_output(last, dataset_all['X'])
-    print output.shape.eval()
-    labels = dataset_all['labels']
-    #print output.eval()
+    X_train = lasagne.layers.get_output(last, dataset['X_train'])
+    X_test = lasagne.layers.get_output(last, dataset['X_test'])
+    X_valid = lasagne.layers.get_output(last, dataset['X_valid'])
+    y_train = dataset['y_train']
+    y_test = dataset['y_test']
+    y_valid = dataset['y_test']
     
-    X = output.shape.eval()
-    y = dataset_all['labels']
-
-    nclasses = np.unique(y).shape[0]
-    nfeatures = X[1]
-
-    X_train, y_train, X_valid, y_valid, X_test, y_test = \
-        train_valid_test_split(X, y,
-                              test_prop=test_prop, valid_prop=valid_prop)
+    print 'content checks'
+    print X_train.eval()
+    print y_train.eval()
+    print X_valid.eval()
+    print y_valid.eval()
+    print X_test.eval()
+    print y_test.eval()
+    labels = dataset['labels']
+    nfeatures = X_train.shape[1]
+    nclasses = 16
 
     return dict(
         X_train=theano.shared(X_train),
@@ -374,4 +377,4 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         pass
 
-    representations = get_new_representations(iter_funcs,dataset_all,output_layer['last'], valid_prop = 4/16, test_prop = 2/16)
+    representations = get_new_representations(iter_funcs,dataset,output_layer['last'], valid_prop = 4/16, test_prop = 2/16)
