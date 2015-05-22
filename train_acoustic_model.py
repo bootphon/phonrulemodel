@@ -8,7 +8,7 @@
 # Maarten Versteegh
 # github.com/mwv
 # maartenversteegh AT gmail DOT com
-# 
+#
 # Licensed under GPLv3
 # ------------------------------------
 """dnn:
@@ -22,9 +22,9 @@ import time
 
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
-import theano  
+import theano
 import theano.tensor as T
-import lasagne 
+import lasagne
 from lasagne.layers import DenseLayer, InputLayer, DropoutLayer
 from lasagne.nonlinearities import rectify, softmax, sigmoid
 
@@ -45,9 +45,11 @@ def train_valid_test_split(X, y, test_prop=0.1, valid_prop=0.2):
     X_train, y_train = X[test_cut:], y[test_cut:]
     return X_train, y_train, X_valid, y_valid, X_test, y_test
 
-def load_data(fname, test_prop=1/16, valid_prop=5/16, register='both',testsubset = False):
+def load_data(fname, test_prop=1/16, valid_prop=5/16, register='both',
+              testsubset=False):
     """
-    If testsubset = True, load_data returns only a small dataset so code can be tested without GPU
+    If testsubset = True, load_data returns only a small dataset so code can
+    be tested without GPU
     """
     f = np.load(fname)
     X, y, labels = f['X'], f['y'], f['labels']
@@ -78,7 +80,7 @@ def load_data(fname, test_prop=1/16, valid_prop=5/16, register='both',testsubset
     nfeatures = X.shape[1]
 
     if testsubset:
-        X = X[1:17] 
+        X = X[1:17]
         y = y[1:17]
 
     X_train, y_train, X_valid, y_valid, X_test, y_test = \
@@ -122,7 +124,7 @@ def build_model(input_dim, output_dim,
             last = l_dropout
         else:
             last = l_hidden
-    
+
     if bottleneck:
         l_bottleneck = DenseLayer(last, num_units=bsize,
                               # nonlinearity=T.nnet.hard_sigmoid,
@@ -256,11 +258,12 @@ def train(iter_funcs, dataset, batch_size=300, test_every=100):
 
 
 def load_all_data(fname, register='both',testsubset = False):
-    """ 
-        Creates dataset for generating new phone representations, without seperating into
-        different training, validation and testing tests
+    """
+        Creates dataset for generating new phone representations, without
+        seperating into different training, validation and testing tests
         epoch.
-        If testsubset = True, load_data returns only a small dataset so code can be tested without GPU
+        If testsubset = True, load_data returns only a small dataset so code
+        can be tested without GPU
     """
     f = np.load(fname)
     X, y, labels = f['X'], f['y'], f['labels']
@@ -289,13 +292,13 @@ def load_all_data(fname, register='both',testsubset = False):
     y = y.astype('int32')
     nclasses = np.unique(y).shape[0]
     nfeatures = X.shape[1]
-    
+
     if testsubset:
-        X = X[1:17] 
+        X = X[1:17]
         y = y[1:17]
 
     print X.shape, y.shape
-   
+
     return dict(
         X=theano.shared(X),
         y=theano.shared(y),
@@ -308,22 +311,24 @@ def load_all_data(fname, register='both',testsubset = False):
 def get_new_representations(iter_funcs, dataset_all, last):
     """Run `dataset_all` through the model and save the second-to-last layer as
        new phone representations
-    """ 
+    """
     output = lasagne.layers.get_output(last, dataset_all['X']).eval()
     labels = dataset_all['labels']
     #print output
     #print labels
     return dict(
         X = output,
-        y = labels   
+        y = labels
     )
 
 if __name__ == '__main__':
     num_epochs=10 #return back to 1000
     batch_size=1 #return back to 1000
     dataset = load_data('/Users/ingeborg/Desktop/mfcc.npz',
-                        valid_prop=4/16, test_prop=2/16, register='IDS',testsubset = True)
-    dataset_all = load_all_data('/Users/ingeborg/Desktop/mfcc.npz', register='IDS',testsubset = True)
+                        valid_prop=4/16, test_prop=2/16, register='IDS',
+                        testsubset=True)
+    dataset_all = load_all_data('/Users/ingeborg/Desktop/mfcc.npz',
+                                register='IDS',testsubset = True)
     output_layer = build_model(
         input_dim=dataset['input_dim'], output_dim=dataset['output_dim'],
         batch_size=batch_size, bottleneck = True, bsize = 50)
@@ -351,7 +356,9 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         pass
 
-    representations = get_new_representations(iter_funcs,dataset_all,output_layer['last'])
+    representations = get_new_representations(iter_funcs,
+                                              dataset_all,
+                                              output_layer['last'])
     filename = '/Users/ingeborg/Desktop/reprs.npz'
     np.savez(filename, X=representations['X'], y=representations['y'])
         #scrhijf naar .npz file
