@@ -21,9 +21,6 @@ import os.path as path
 import glob
 from collections import namedtuple
 from itertools import chain, product
-import sys
-from time import time
-from contextlib import contextmanager
 
 import numpy as np
 from scipy.stats import multivariate_normal as mnorm
@@ -39,21 +36,7 @@ import spectral
 import textgrid
 
 
-@contextmanager
-def verb_print(msg, verbose=False):
-    """Helper for verbose printing with timing around pieces of code.
-    """
-    if verbose:
-        t0 = time()
-        msg = msg + '...'
-        print msg,
-        sys.stdout.flush()
-    try:
-        yield
-    finally:
-        if verbose:
-            print 'done. time: {0:.3f}s'.format(time() - t0)
-            sys.stdout.flush()
+from util import verb_print
 
 
 def make_intervals_dataframe(stimulus_dir, fix=False):
