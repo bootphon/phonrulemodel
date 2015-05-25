@@ -353,6 +353,8 @@ def main(dataset,
          max_epochs=1000,
          batch_size=1000,
          patience=100,
+         learning_rate=0.01,
+         momentum=0.9,
          test_every=100,
          verbose=True):
     """Build and train a network.
@@ -382,7 +384,7 @@ def main(dataset,
     iter_funcs = create_iter_funcs(
         dataset, output_layer,
         batch_size=batch_size,
-        learning_rate=0.1, momentum=0.9)
+        learning_rate=learning_rate, momentum=momentum)
 
     loss, epoch, weights, history = train_loop(
         output_layer, iter_funcs, dataset, batch_size, max_epochs,
