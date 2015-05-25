@@ -11,7 +11,8 @@
 #
 # Licensed under GPLv3
 # ------------------------------------
-"""dnn:
+"""train_acoustic model: train a neural net to predict phone classes from
+mfcc tokens.
 
 """
 
@@ -19,6 +20,7 @@ from __future__ import division
 
 import itertools
 import time
+import cPickle as pickle
 
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
@@ -26,8 +28,11 @@ import theano
 import theano.tensor as T
 import lasagne
 from lasagne.layers import DenseLayer, InputLayer, DropoutLayer, \
-    get_all_layers, get_output
-from lasagne.nonlinearities import linear, leaky_rectify, softmax
+    get_output, get_all_param_values, set_all_param_values, get_all_params
+from lasagne.nonlinearities import linear, leaky_rectify, softmax, \
+    sigmoid, tanh
+
+from util import verb_print, ProgressPrinter
 
 
 def float32(x):
@@ -48,37 +53,35 @@ def train_valid_test_split(X, y, test_prop=0.1, valid_prop=0.2):
     return X_train, y_train, X_valid, y_valid, X_test, y_test
 
 def load_data(fname, test_prop=1/16, valid_prop=5/16, register='both',
-              testsubset=False):
+              test=False):
     """
     If testsubset = True, load_data returns only a small dataset so code can
     be tested without GPU
     """
     f = np.load(fname)
-    X_, y_, labels = f['X'], f['y'], f['labels']
-    X = X_.copy()
-    y = y_.copy()
+    X, y, labels = f['X'], f['y'], f['labels']
 
+    return build_dataset(X, y, labels, test_prop, valid_prop, register, test)
+
+def build_dataset(X, y, labels, test_prop=0.2, valid_prop=0.2,
+                  register='both', test=False):
     if register in ['IDS', 'ADS']:
         sel_ixs = np.in1d(y, np.nonzero(labels[:, 1]==register))
         X = X[sel_ixs]
         y = y[sel_ixs]
-    elif register == 'both':
+    elif register == 'both': # merge IDS and ADS labels per phone
         ix2phone = dict(enumerate(labels[:, 0]))
         phones = sorted(set(ix2phone.values()))
         phone2newix = {p:ix for ix, p in enumerate(phones)}
         y = np.array([phone2newix[ix2phone[i]] for i in y])
-        # phone2ix = {k: ix for ix, k in enumerate(labels[:, 0])}
     else:
         raise ValueError('invalid option for register: {0}'.format(register))
 
     oldix2newix = {old_ix:new_ix for new_ix, old_ix in enumerate(np.unique(y))}
     y = np.array([oldix2newix[i] for i in y])
 
-    print 'number of labels: {0}'.format(len(np.unique(y)))
-
-    X = StandardScaler().fit_transform(X)
+    # X = StandardScaler().fit_transform(X)
     X = MinMaxScaler(feature_range=(0,1)).fit_transform(X)
-    print X.min(), X.max()
     X = X.astype(theano.config.floatX)
     y = y.astype('int32')
     nclasses = np.unique(y).shape[0]
@@ -88,7 +91,7 @@ def load_data(fname, test_prop=1/16, valid_prop=5/16, register='both',
         train_valid_test_split(X, y,
                                test_prop=test_prop, valid_prop=valid_prop)
 
-    if testsubset:
+    if test:
         X = X_train[100:200]
         y = y_train[100:200]
         X_train = X_train[:100]
@@ -111,41 +114,51 @@ def load_data(fname, test_prop=1/16, valid_prop=5/16, register='both',
         input_dim=nfeatures,
         output_dim=nclasses,
         labels=labels
-    ), (X_, y_, labels)
+    )
 
 
 def build_model(input_dim, output_dim,
                 hidden_layers=(1000, 1000),
-                batch_size=100, dropout=False, bottleneck=True,
-                bottlenecksize=25):
+                transfer_func='rectify',
+                batch_size=100, dropout=0,
+                nbottleneck=25,
+                bottleneck_func='linear'):
     """
     If bottleneck = True, a bottleneck hiddenlayer of with bsize nodes is added
     """
+    transfer_funcs = {'rectify': leaky_rectify,
+                      'sigmoid': sigmoid,
+                      'tanh': tanh,
+                      'linear': linear}
+    transfer_func = transfer_funcs[transfer_func]
+    bottleneck_func = transfer_funcs[bottleneck_func]
     l_in = InputLayer(shape=(batch_size, input_dim))
     last = l_in
     for ix, size in enumerate(hidden_layers[:-1]):
         l_hidden = DenseLayer(
             last, num_units=size,
-            nonlinearity=leaky_rectify,
+            nonlinearity=transfer_func,
             W=lasagne.init.GlorotUniform())
-        if dropout:
-            l_dropout = DropoutLayer(l_hidden, p=0.5)
+        if dropout > 0:
+            l_dropout = DropoutLayer(l_hidden, p=dropout)
             last = l_dropout
         else:
             last = l_hidden
 
-    if bottleneck:
+    if nbottleneck > 0:
         l_bottleneck = DenseLayer(
-            last, num_units=bottlenecksize,
+            last, num_units=nbottleneck,
             name='bottleneck',
-            nonlinearity=linear,
+            nonlinearity=bottleneck_func,
             W=lasagne.init.GlorotUniform())
         last = l_bottleneck
 
     l_last_dense = DenseLayer(
         last, num_units=hidden_layers[-1],
-        nonlinearity=leaky_rectify,
+        nonlinearity=transfer_func,
         W=lasagne.init.GlorotUniform())
+    if dropout > 0:
+        l_last_dense = DropoutLayer(l_last_dense, p=dropout)
     l_out = DenseLayer(l_last_dense, num_units=output_dim,
                        nonlinearity=softmax,
                        W=lasagne.init.GlorotUniform())
@@ -179,7 +192,7 @@ def create_iter_funcs(dataset, output_layer,
                    deterministic=True), axis=1)
     accuracy = T.mean(T.eq(pred, y_batch), dtype=theano.config.floatX)
 
-    all_params = lasagne.layers.get_all_params(output_layer)
+    all_params = get_all_params(output_layer)
     # updates = lasagne.updates.adadelta(
     #     loss_or_grads=loss_train,
     #     params=all_params,
@@ -272,60 +285,111 @@ def train(iter_funcs, dataset, batch_size=300, test_every=100):
         }
 
 
-def get_bottleneck_features(network, X):
-    layers = get_all_layers(network)
-    bottleneck = [l for l in layers if l.name == 'bottleneck']
-    if len(bottleneck) == 0:
-        raise ValueError('network has no bottleneck')
-    else:
-        bottleneck = bottleneck[0]
-    return lasagne.layers.get_output(bottleneck, X)
+def train_loop(output_layer, iter_funcs, dataset, batch_size, max_epochs,
+               test_every=100, patience=100, verbose=True):
+    best_valid_loss = np.inf
+    best_valid_epoch = 0
+    best_train_loss = np.inf
+    best_weights = None
+    now = time.time()
+    history = []
+    if verbose:
+        printer = ProgressPrinter(color=True)
+    try:
+        for epoch in train(iter_funcs, dataset,
+                           batch_size=batch_size, test_every=test_every):
+            epoch_number = epoch['number']
+            train_loss = epoch['train_loss']
+            valid_loss = epoch['valid_loss']
+            valid_acc = epoch['valid_accuracy']
+            info = dict(
+                epoch=epoch_number,
+                train_loss=train_loss,
+                train_loss_best=train_loss <= best_train_loss,
+                train_loss_worse=train_loss > history[-1]['train_loss']
+                  if len(history) > 0 else False,
+                valid_loss=valid_loss,
+                valid_loss_best=valid_loss <= best_valid_loss,
+                valid_loss_worse=valid_loss > history[-1]['valid_loss']
+                  if len(history) > 0 else False,
+                valid_accuracy=valid_acc,
+                duration=time.time() - now)
+            history.append(info)
+            now = time.time()
+            if verbose:
+                printer(history)
+
+            # early stopping
+            if epoch['valid_loss'] < best_valid_loss:
+                best_valid_loss = valid_loss
+                best_valid_epoch = epoch_number
+                best_weights = get_all_param_values(output_layer)
+            elif epoch['number'] >= max_epochs:
+                break
+            elif best_valid_epoch + patience < epoch_number:
+                if verbose:
+                    print("  stopping early")
+                    print("  best validation loss was {:.6f} at epoch {}."
+                          .format(best_valid_loss, best_valid_epoch))
+                break
+            if epoch['number'] >= max_epochs:
+                if verbose:
+                    print('  last epoch')
+                    print('  best validation loss was {:.6f} at epoch {}.'
+                          .format(best_valid_loss, best_valid_epoch))
+                break
+    except KeyboardInterrupt:
+        pass
+    return best_valid_loss, best_valid_epoch, best_weights, history
 
 
-def main(npzfile, output, nlayers, nunits, nbottleneck,
-         num_epochs, batch_size, test, verbose):
 
-    dataset, (X, y, labels) = load_data(
-        npzfile,
-        valid_prop=4/16, test_prop=2/16,
-        register='both',
-        testsubset=test)
+def main(dataset,
+         layers=(100, 100),
+         dropout=0.5,
+         transfer_func='rectify',
+         nbottleneck=25,
+         bottleneck_func='linear',
+         max_epochs=1000,
+         batch_size=1000,
+         patience=100,
+         test_every=100,
+         verbose=True):
+    """Build and train a network.
+
+    Parameters
+    ----------
+    dataset : dict
+        as output by load_data
+    layers : sequence of ints
+        hidden layers
+    dropout : float
+        proportion of dropout
+
+    #TODO finish documenting this function
+    """
+
     output_layer = build_model(
         input_dim=dataset['input_dim'],
         output_dim=dataset['output_dim'],
-        hidden_layers=[nunits]*nlayers,
+        hidden_layers=layers,
+        transfer_func=transfer_func,
+        dropout=dropout,
         batch_size=batch_size,
-        bottleneck=True if nbottleneck > 0 else False,
-        bottlenecksize=nbottleneck)
+        nbottleneck=nbottleneck,
+        bottleneck_func=bottleneck_func)
+
     iter_funcs = create_iter_funcs(
         dataset, output_layer,
         batch_size=batch_size,
         learning_rate=0.1, momentum=0.9)
 
-    test_every = 100
-    now = time.time()
-    try:
-        for epoch in train(iter_funcs, dataset,
-                           batch_size=batch_size, test_every=test_every):
-            print("Epoch {} of {} took {:.3f}s".format(
-                epoch['number'], num_epochs, time.time() - now))
-            now = time.time()
-            print("  training loss:\t\t{:.6f}".format(epoch['train_loss']))
-            print("  validation loss:\t\t{:.6f}".format(epoch['valid_loss']))
-            print("  validation accuracy:\t\t{:.2f} %%".format(
-                epoch['valid_accuracy'] * 100))
-            if epoch['number'] % test_every == 0:
-                print("  TEST ACCURACY:\t\t{:.2f} %%".format(
-                    epoch['test_accuracy'] * 100))
+    loss, epoch, weights, history = train_loop(
+        output_layer, iter_funcs, dataset, batch_size, max_epochs,
+        test_every, patience)
 
-            if epoch['number'] >= num_epochs:
-                break
-    except KeyboardInterrupt:
-        pass
-
-
-    X_bnf = get_bottleneck_features(output_layer, theano.shared(X)).eval()
-    np.savez(output, X=X_bnf, y=y, labels=labels)
+    set_all_param_values(output_layer, weights)
+    return loss, epoch, history, output_layer
 
 
 if __name__ == '__main__':
@@ -364,6 +428,16 @@ needs to have X, y and labels keys.
         parser.add_argument('batch_size', metavar='BATCH_SIZE',
                             nargs=1,
                             help='batch size.')
+        parser.add_argument('--dropout',
+                            action='store',
+                            dest='dropout',
+                            default=0,
+                            help='add dropout to hidden layers')
+        parser.add_argument('--patience',
+                            action='store',
+                            dest='patience',
+                            default=0,
+                            help='convergence patience')
         parser.add_argument('--test',
                             action='store_true',
                             dest='test',
@@ -380,12 +454,43 @@ needs to have X, y and labels keys.
     num_epochs = int(args['nepochs'][0])
     npzfile = args['input'][0]
     output = args['output'][0]
+
     batch_size = int(args['batch_size'][0])
     nbottleneck = int(args['nbottleneck'][0])
     nunits = int(args['nunits'][0])
     nlayers = int(args['nlayers'][0])
+    dropout = float(args['dropout'])
+    patience = int(args['patience'])
+
     verbose = args['verbose']
     test = args['test']
 
-    main(npzfile, output, nlayers, nunits, nbottleneck,
-         num_epochs, batch_size, test, verbose)
+    with verb_print('loading data', verbose):
+        dataset = load_data(
+            npzfile,
+            valid_prop=4/16, test_prop=2/16,
+            register='both',
+            test=test)
+
+    config = dict(
+        layers=[nunits]*nlayers,
+        dropout=dropout,
+        transfer_func='rectify',
+        nbottleneck=nbottleneck,
+        bottleneck_func='linear',
+        max_epochs=num_epochs,
+        batch_size=batch_size,
+        patience=patience)
+
+    loss, epoch, history, output_layer = main(dataset, verbose=verbose,
+                                              **config)
+
+    with open(output, 'wb') as fout:
+        result = dict(
+            descr="""Trained network.""",
+            config=config,
+            loss=loss,
+            epoch=epoch,
+            history=history,
+            network=output_layer)
+        pickle.dump(result, fout, -1)
