@@ -97,11 +97,13 @@ class ProgressPrinter(object):
             table['valid_acc'] = info['valid_accuracy']
 
         if self.color:
-            ratio = valid_loss / train_loss
-            if ratio <= 1:
-                color = COLORS.GREEN
-            else:
+            ratio = train_loss / valid_loss
+            if ratio < 0.9:
                 color = COLORS.RED
+            elif ratio > 1.1:
+                color = COLORS.BLUE
+            else:
+                color = COLORS.ENDC
             table['ratio'] = '{}{:.2f}{}'.format(color, ratio, COLORS.ENDC)
         else:
             table['ratio'] = '{:.2f}'.format(ratio)
