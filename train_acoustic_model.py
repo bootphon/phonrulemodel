@@ -30,7 +30,7 @@ import lasagne
 from lasagne.layers import DenseLayer, InputLayer, DropoutLayer, \
     get_output, get_all_param_values, set_all_param_values, get_all_params
 from lasagne.nonlinearities import linear, leaky_rectify, softmax, \
-    sigmoid, tanh
+    tanh, rectify
 
 from util import verb_print, ProgressPrinter
 
@@ -126,9 +126,10 @@ def build_model(input_dim, output_dim,
     """
     If bottleneck = True, a bottleneck hiddenlayer of with bsize nodes is added
     """
-    transfer_funcs = {'rectify': leaky_rectify,
-                      'sigmoid': sigmoid,
+    transfer_funcs = {'rectify': rectify,
+                      'sigmoid': T.nnet.hard_sigmoid,
                       'tanh': tanh,
+                      'leaky_rectify': leaky_rectify,
                       'linear': linear}
     transfer_func = transfer_funcs[transfer_func]
     bottleneck_func = transfer_funcs[bottleneck_func]
@@ -168,6 +169,7 @@ def build_model(input_dim, output_dim,
 def create_iter_funcs(dataset, output_layer,
                       X_tensor_type=T.matrix,
                       batch_size=300,
+                      update='nesterov',
                       learning_rate=0.01,
                       momentum=0.9):
     """Create functions for training, validation and testing to iterate one
@@ -200,14 +202,17 @@ def create_iter_funcs(dataset, output_layer,
     #     rho=0.95,
     #     epsilon=1e-6
     #     )
-    updates = lasagne.updates.sgd(
-        loss_or_grads=loss_train,
-        params=all_params,
-        learning_rate=learning_rate)
-    # updates = lasagne.updates.nesterov_momentum(
-    #     loss_or_grads=loss_train,
-    #     params=all_params,
-    #     learning_rate=learning_rate, momentum=momentum)
+    if update == 'sgd':
+        updates = lasagne.updates.sgd(
+            loss_or_grads=loss_train,
+            params=all_params,
+            learning_rate=learning_rate)
+    else:
+        updates = lasagne.updates.nesterov_momentum(
+            loss_or_grads=loss_train,
+            params=all_params,
+            learning_rate=learning_rate,
+            momentum=momentum)
 
 
     iter_train = theano.function(
@@ -286,11 +291,22 @@ def train(iter_funcs, dataset, batch_size=300, test_every=100):
 
 
 def train_loop(output_layer, iter_funcs, dataset, batch_size, max_epochs,
-               test_every=100, patience=100, verbose=True):
+               test_every=100, patience=100,
+               learning_rate_start=theano.shared(float32(0.03)),
+               learning_rate_stop=theano.shared(float32(0.001)),
+               momentum_start=theano.shared(float32(0.9)),
+               momentum_stop=theano.shared(float32(0.999)),
+               verbose=True):
     best_valid_loss = np.inf
     best_valid_epoch = 0
     best_train_loss = np.inf
     best_weights = None
+    learning_rates = np.linspace(
+        learning_rate_start.get_value(), learning_rate_stop.get_value(),
+        max_epochs)
+    momentums = np.linspace(
+        momentum_start.get_value(), momentum_stop.get_value(), max_epochs)
+
     now = time.time()
     history = []
     if verbose:
@@ -338,6 +354,12 @@ def train_loop(output_layer, iter_funcs, dataset, batch_size, max_epochs,
                     print('  best validation loss was {:.6f} at epoch {}.'
                           .format(best_valid_loss, best_valid_epoch))
                 break
+
+            # adjust learning rate and momentum
+            new_learning_rate = float32(learning_rates[epoch_number-1])
+            learning_rate_start.set_value(new_learning_rate)
+            new_momentum = float32(momentums[epoch_number-1])
+            momentum_start.set_value(new_momentum)
     except KeyboardInterrupt:
         pass
     return best_valid_loss, best_valid_epoch, best_weights, history
@@ -353,7 +375,11 @@ def main(dataset,
          max_epochs=1000,
          batch_size=1000,
          patience=100,
-         learning_rate=0.01,
+         update='sgd',
+         learning_rate_start=0.05,
+         learning_rate_stop=0.001,
+         momentum_start=0.9,
+         momentum_stop=0.999,
          momentum=0.9,
          test_every=100,
          verbose=True):
@@ -370,6 +396,10 @@ def main(dataset,
 
     #TODO finish documenting this function
     """
+    learning_rate_start = theano.shared(float32(learning_rate_start))
+    learning_rate_stop = theano.shared(float32(learning_rate_stop))
+    momentum_start = theano.shared(float32(momentum_start))
+    momentum_stop = theano.shared(float32(momentum_stop))
 
     output_layer = build_model(
         input_dim=dataset['input_dim'],
@@ -384,11 +414,14 @@ def main(dataset,
     iter_funcs = create_iter_funcs(
         dataset, output_layer,
         batch_size=batch_size,
-        learning_rate=learning_rate, momentum=momentum)
+        update=update,
+        learning_rate=learning_rate_start,
+        momentum=momentum_start)
 
     loss, epoch, weights, history = train_loop(
         output_layer, iter_funcs, dataset, batch_size, max_epochs,
-        test_every, patience)
+        test_every, patience, learning_rate_start, learning_rate_stop,
+        momentum_start, momentum_stop)
 
     set_all_param_values(output_layer, weights)
     return loss, epoch, history, output_layer

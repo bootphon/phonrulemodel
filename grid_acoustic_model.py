@@ -21,6 +21,7 @@ import cPickle as pickle
 from collections import OrderedDict
 import os
 import os.path as path
+from pprint import pformat
 
 import theano.tensor as T
 import numpy as np
@@ -35,7 +36,8 @@ from util import verb_print
 
 def go(estimates, nsamples, dispersal, shrink,
        layers, dropout, transfer_func, nbottleneck, bottleneck_func,
-       max_epochs, batch_size, patience, learning_rate, momentum,
+       max_epochs, batch_size, patience, update, learning_rate_start,
+       learning_rate_stop, momentum_start, momentum_stop,
        verbose):
     if verbose:
         print '-'*30
@@ -47,7 +49,9 @@ def go(estimates, nsamples, dispersal, shrink,
 
     loss, epoch, history, network = tam.main(
         dataset, layers, dropout, transfer_func, nbottleneck, bottleneck_func,
-        max_epochs, batch_size, patience, learning_rate, momentum)
+        max_epochs, batch_size, patience, update, learning_rate_start,
+        learning_rate_stop, momentum_start, momentum_stop, test_every=100,
+        verbose=True)
 
     with verb_print('converting data', verbose):
         X_test = dataset['X_test'].get_value()
@@ -111,48 +115,50 @@ if __name__ == '__main__':
 
     if test:
         param_grid = ParameterGrid(dict(
-            nsamples=[100],
-            batch_size=[100],
-            dispersal=[1, 2],
+            nsamples=[1000],
+            batch_size=[1000],
+            dispersal=[1],
             shrink=[0],
-            layers=[[100, 100]],
-            dropout=[0, 0.5],
+            layers=[[100, 100], [100, 100, 100]],
+            dropout=[0.0, 0.5],
             transfer_func=['rectify'],
             nbottleneck=[5],
             bottleneck_func=['linear'],
-            max_epochs=[10],
+            max_epochs=[100],
             patience=[10],
-            learning_rate=[0.01],
-            momentum=[0.9]))
+            update=['nesterov'],
+            learning_rate_start=[0.03, 0.05],
+            learning_rate_stop=[0.001],
+            momentum_start=[0.9],
+            momentum_stop=[0.999]))
     else:
         param_grid = ParameterGrid(dict(
-            nsamples=[1000, 5000, 10000],
+            nsamples=[1000, 2000, 3000],
             dispersal=[1],
             shrink=[0],
             layers=[[100, 100], [100, 100, 100], [100, 100, 100, 100],
-                    [500, 500], [500, 500, 500], [100, 100, 100, 100],
-                    [1000, 1000], [1000, 1000, 1000], [1000, 1000, 1000, 1000],
-                    [1000, 500, 250, 100]],
-            dropout=[0, 0.5],
+                    [500, 500], [500, 500, 500], [500, 500, 500, 500],
+                    [1000, 1000], [1000, 1000, 1000], [1000, 1000, 1000, 1000]],
+            dropout=[0.5],
             transfer_func=['rectify'],
-            nbottleneck=[5, 10, 15, 20, 25, 50],
-            bottleneck_func=['linear', 'rectify'],
+            nbottleneck=[5, 10, 15],
+            bottleneck_func=['rectify', 'linear'],
             max_epochs=[1000],
             batch_size=[1000],
             patience=[100],
-            learning_rate=[0.03, 0.02, 0.01, 0.001, 0.0001],
-            momentum=[0.9, 0.95, 0.99]
-        ))
+            update=['nesterov'],
+            learning_rate_start=[0.05],
+            learning_rate_stop=[0.001],
+            momentum_start=[0.9],
+            momentum_stop=[0.999]))
 
     results = []
     for ix, params in enumerate(param_grid):
-        best_loss, best_epoch, history, network, prec, recall, fscore = \
-            go(estimates, verbose=verbose, **params)
         info = OrderedDict([
             ('idx', ix),
             ('nsamples', params['nsamples']),
-            ('disp', params['dispersal']),
-            ('shr', params['shrink']),
+            # ('disp', params['dispersal']),
+            # ('shr', params['shrink']),
             ('layers', '\"[{}]\"'.format(':'.join('{}'.format(s)
                                                   for s in params['layers']))),
             ('drop', '{:.2f}'.format(params['dropout'])),
@@ -161,14 +167,22 @@ if __name__ == '__main__':
             ('bnf_f', params['bottleneck_func']),
             ('batch', params['batch_size']),
             ('pat', params['patience']),
-            ('mom', params['momentum']),
-            ('alpha', params['learning_rate']),
-            ('max_ep', params['max_epochs']),
+            ('upd', params['update']),
+            ('mom_start', params['momentum_start']),
+            ('mom_stop', params['momentum_stop']),
+            ('lr_start', params['learning_rate_start']),
+            ('lr_stop', params['learning_rate_stop']),
+            ('max_ep', params['max_epochs'])])
+        print pformat(dict(info))
+        best_loss, best_epoch, history, network, prec, recall, fscore = \
+            go(estimates, verbose=verbose, **params)
+        info.update(OrderedDict([
             ('best_loss', best_loss),
             ('best_ep', best_epoch),
             ('precision', prec),
             ('recall', recall),
-            ('fscore', fscore)])
+            ('fscore', fscore)]))
+
         results.append(info)
         fname = path.join(outdir, 'model_{}.pkl'.format(ix))
         with open(fname, 'wb') as fout:
