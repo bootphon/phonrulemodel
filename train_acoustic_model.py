@@ -301,8 +301,9 @@ def train_loop(output_layer, iter_funcs, dataset, batch_size, max_epochs,
     best_valid_epoch = 0
     best_train_loss = np.inf
     best_weights = None
-    learning_rates = np.linspace(
-        learning_rate_start.get_value(), learning_rate_stop.get_value(),
+    learning_rates = np.logspace(
+        np.log10(learning_rate_start.get_value()),
+        np.log10(learning_rate_stop.get_value()),
         max_epochs)
     momentums = np.linspace(
         momentum_start.get_value(), momentum_stop.get_value(), max_epochs)
