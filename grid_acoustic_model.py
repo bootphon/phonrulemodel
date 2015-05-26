@@ -133,22 +133,20 @@ if __name__ == '__main__':
             momentum_stop=[0.999]))
     else:
         param_grid = ParameterGrid(dict(
-            nsamples=[1000, 2000, 3000],
+            nsamples=[5000],
             dispersal=[1],
             shrink=[0],
-            layers=[[100, 100], [100, 100, 100], [100, 100, 100, 100],
-                    [500, 500], [500, 500, 500], [500, 500, 500, 500],
-                    [1000, 1000], [1000, 1000, 1000], [1000, 1000, 1000, 1000]],
+            layers=[[1000]*i for i in range(3, 7)],
             dropout=[0.5],
             transfer_func=['rectify'],
-            nbottleneck=[5, 10, 15],
-            bottleneck_func=['rectify', 'linear'],
-            max_epochs=[1000],
+            nbottleneck=range(5, 11),
+            bottleneck_func=['linear'],
+            max_epochs=[5000],
             batch_size=[1000],
-            patience=[100],
+            patience=[500],
             update=['nesterov'],
-            learning_rate_start=[0.05],
-            learning_rate_stop=[0.001],
+            learning_rate_start=[0.03, 0.01],
+            learning_rate_stop=[0.0001, 0.001],
             momentum_start=[0.9],
             momentum_stop=[0.999]))
 
