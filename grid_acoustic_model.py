@@ -35,7 +35,7 @@ import resample
 from util import verb_print
 
 def go(estimates, nsamples, dispersal, shrink,
-       layers, dropout, transfer_func, nbottleneck, bottleneck_func,
+       layers, dropout, transfer_f, bnf_s, bnf_f,
        max_epochs, batch_size, patience, update, learning_rate_start,
        learning_rate_stop, momentum_start, momentum_stop,
        verbose):
@@ -48,7 +48,7 @@ def go(estimates, nsamples, dispersal, shrink,
         dataset = tam.build_dataset(X, y, labels)
 
     loss, epoch, history, network = tam.main(
-        dataset, layers, dropout, transfer_func, nbottleneck, bottleneck_func,
+        dataset, layers, dropout, transfer_f, bnf_s, bnf_f,
         max_epochs, batch_size, patience, update, learning_rate_start,
         learning_rate_stop, momentum_start, momentum_stop, test_every=100,
         verbose=True)
@@ -59,20 +59,9 @@ def go(estimates, nsamples, dispersal, shrink,
     with verb_print('generating predictions', verbose):
         y_pred = T.argmax(get_output(network, X_test, deterministic=True),
                           axis=1).eval()
-        # slices = [slice(batch_index*batch_size, (batch_index+1)*batch_size)
-        #           for batch_index in xrange(X_test.shape[0] // batch_size+1)]
-        # y_pred = np.hstack((
-        #     T.argmax(get_output(network, X_test[sl], deterministic=True),
-        #          axis=1).eval()
-        #     for sl in slices))
     with verb_print('evaluating', verbose):
         prec, recall, fscore, _ = precision_recall_fscore_support(
             y_test, y_pred, average='weighted')
-    if verbose:
-        print 'prec: {0:.3f}, recall: {1:.3f}, fscore: {2:.3f}'.format(
-            prec, recall, fscore)
-        print '-'*30
-        print
 
     return loss, epoch, history, network, prec, recall, fscore
 
@@ -114,63 +103,67 @@ if __name__ == '__main__':
         estimates = pickle.load(fin)
 
     if test:
-        param_grid = ParameterGrid(dict(
+        param_grid = dict(
             nsamples=[1000],
             batch_size=[1000],
             dispersal=[1],
             shrink=[0],
             layers=[[100, 100], [100, 100, 100]],
             dropout=[0.0, 0.5],
-            transfer_func=['rectify'],
-            nbottleneck=[5],
-            bottleneck_func=['linear'],
-            max_epochs=[100],
+            transfer_f=['rectify'],
+            bnf_s=[5, 10],
+            bnf_f=['linear'],
+            max_epochs=[5],
             patience=[10],
             update=['nesterov'],
             learning_rate_start=[0.03, 0.05],
             learning_rate_stop=[0.001],
             momentum_start=[0.9],
-            momentum_stop=[0.999]))
+            momentum_stop=[0.999])
     else:
-        param_grid = ParameterGrid(dict(
+        param_grid = dict(
             nsamples=[5000],
             dispersal=[1],
             shrink=[0],
-            layers=[[1000]*i for i in range(3, 7)],
+            layers=[[1000, 1000, 1000], [2000, 2000, 2000]],
             dropout=[0.5],
-            transfer_func=['rectify'],
-            nbottleneck=range(5, 11),
-            bottleneck_func=['linear'],
+            transfer_f=['rectify'],
+            bnf_s=range(10, 20),
+            bnf_f=['linear'],
             max_epochs=[5000],
-            batch_size=[1000],
-            patience=[500],
+            batch_size=[20000],
+            patience=[100],
             update=['nesterov'],
-            learning_rate_start=[0.03, 0.01],
+            learning_rate_start=[0.05],
             learning_rate_stop=[0.0001, 0.001],
             momentum_start=[0.9],
-            momentum_stop=[0.999]))
+            momentum_stop=[0.999])
 
+    # changing parameters
+    dyn_params = [p for p in param_grid if len(param_grid[p]) > 1]
+    eval_metrics = ['precision', 'recall', 'fscore']
+    param_grid = ParameterGrid(param_grid)
     results = []
     for ix, params in enumerate(param_grid):
         info = OrderedDict([
             ('idx', ix),
             ('nsamples', params['nsamples']),
-            # ('disp', params['dispersal']),
-            # ('shr', params['shrink']),
+            ('dispersal', params['dispersal']),
+            ('shrink', params['shrink']),
             ('layers', '\"[{}]\"'.format(':'.join('{}'.format(s)
                                                   for s in params['layers']))),
-            ('drop', '{:.2f}'.format(params['dropout'])),
-            ('transfer_f', params['transfer_func']),
-            ('bnf_s', params['nbottleneck']),
-            ('bnf_f', params['bottleneck_func']),
-            ('batch', params['batch_size']),
-            ('pat', params['patience']),
-            ('upd', params['update']),
-            ('mom_start', params['momentum_start']),
-            ('mom_stop', params['momentum_stop']),
-            ('lr_start', params['learning_rate_start']),
-            ('lr_stop', params['learning_rate_stop']),
-            ('max_ep', params['max_epochs'])])
+            ('dropout', '{:.2f}'.format(params['dropout'])),
+            ('transfer_f', params['transfer_f']),
+            ('bnf_s', params['bnf_s']),
+            ('bnf_f', params['bnf_f']),
+            ('batch_size', params['batch_size']),
+            ('patience', params['patience']),
+            ('update', params['update']),
+            ('momentum_start', params['momentum_start']),
+            ('momentum_stop', params['momentum_stop']),
+            ('learning_rate_start', params['learning_rate_start']),
+            ('learning_rate_stop', params['learning_rate_stop']),
+            ('max_epochs', params['max_epochs'])])
         print pformat(dict(info))
         best_loss, best_epoch, history, network, prec, recall, fscore = \
             go(estimates, verbose=verbose, **params)
@@ -182,6 +175,14 @@ if __name__ == '__main__':
             ('fscore', fscore)]))
 
         results.append(info)
+        print tabulate([OrderedDict([(k, v)
+                                      for k, v in row.iteritems()
+                                      if k in set(dyn_params+eval_metrics)])
+                         for row in results],
+                        headers='keys',
+                        floatfmt='.5f',
+                        tablefmt='simple')
+
         fname = path.join(outdir, 'model_{}.pkl'.format(ix))
         with open(fname, 'wb') as fout:
             model = dict(
