@@ -102,7 +102,7 @@ def extract_cepstra(df, stimulus_dir, normalize='cmvn', window_shift=0.005):
                              'normalization method')
     mfcc_config = dict(fs=44100, window_length=0.025, window_shift=window_shift,
                        nfft=2048, scale='mel', nfilt=40, taper_filt=True,
-                       deltas=False, do_dct=True, nceps=13, log_e=True,
+                       deltas=True, do_dct=True, nceps=13, log_e=True,
                        lifter=22, energy_compression='log', pre_emph=0.97)
     mfcc_encoder = spectral.Spectral(**mfcc_config)
     cepstra = {} # dict from filename to mfcc features in ndarray
