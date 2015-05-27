@@ -32,12 +32,31 @@ from tabulate import tabulate
 
 import train_acoustic_model as tam
 import resample
-from util import verb_print
+from util import verb_print, save_history
+from dnn import save_model
 
-def go(estimates, nsamples, dispersal, shrink,
-       layers, dropout, transfer_f, bnf_s, bnf_f,
-       max_epochs, batch_size, patience, update, learning_rate_start,
-       learning_rate_stop, momentum_start, momentum_stop,
+def go(estimates,
+       # data params:
+       nsamples,
+       dispersal,
+       shrink,
+       batch_size,
+       # network params:
+       hidden_pre,
+       dropout,
+       hidden_f,
+       bottleneck_size,
+       bottleneck_f,
+       hidden_post,
+       output_f,
+       # training params:
+       max_epochs,
+       patience,
+       update,
+       learning_rate_start,
+       learning_rate_stop,
+       momentum_start,
+       momentum_stop,
        verbose):
     if verbose:
         print '-'*30
@@ -48,9 +67,22 @@ def go(estimates, nsamples, dispersal, shrink,
         dataset = tam.build_dataset(X, y, labels)
 
     loss, epoch, history, network = tam.main(
-        dataset, layers, dropout, transfer_f, bnf_s, bnf_f,
-        max_epochs, batch_size, patience, update, learning_rate_start,
-        learning_rate_stop, momentum_start, momentum_stop, test_every=100,
+        dataset,
+        batch_size,
+        hidden_pre,
+        dropout,
+        hidden_f,
+        bottleneck_size,
+        bottleneck_f,
+        hidden_post,
+        output_f,
+        max_epochs,
+        patience,
+        update,
+        learning_rate_start,
+        learning_rate_stop,
+        momentum_start,
+        momentum_stop,
         verbose=True)
 
     with verb_print('converting data', verbose):
@@ -104,34 +136,48 @@ if __name__ == '__main__':
 
     if test:
         param_grid = dict(
+            # data params
             nsamples=[1000],
             batch_size=[1000],
             dispersal=[1],
             shrink=[0],
-            layers=[[100, 100], [100, 100, 100]],
-            dropout=[0.0, 0.5],
-            transfer_f=['rectify'],
-            bnf_s=[5, 10],
-            bnf_f=['linear'],
+
+            # network params:
+            hidden_pre=[[100, 100, 100]],
+            dropout=[0.5],
+            hidden_f=['rectify'],
+            bottleneck_size=[10],
+            bottleneck_f=['linear'],
+            hidden_post=[()],
+            output_f=['softmax'],
+
+            # training params:
             max_epochs=[5],
             patience=[10],
             update=['nesterov'],
-            learning_rate_start=[0.03, 0.05],
+            learning_rate_start=[0.05],
             learning_rate_stop=[0.001],
             momentum_start=[0.9],
             momentum_stop=[0.999])
     else:
         param_grid = dict(
-            nsamples=[2500],
+            # data params
+            nsamples=[5000],
             dispersal=[1],
             shrink=[0],
-            layers=[[2000, 2000, 2000]],
-            dropout=[0.5],
-            transfer_f=['rectify'],
-            bnf_s=[5],
-            bnf_f=['linear'],
-            max_epochs=[20000],
             batch_size=[25000],
+
+            # network params:
+            hidden_pre=[[2000, 2000], [2000, 2000, 2000]],
+            dropout=[0.5],
+            hidden_f=['rectify'],
+            bottleneck_size=[5],
+            bottleneck_f=['linear'],
+            hidden_post=[[2000], []],
+            output_f=['softmax'],
+
+            # training params:
+            max_epochs=[20000],
             patience=[1000],
             update=['nesterov'],
             learning_rate_start=[0.01],
@@ -146,17 +192,28 @@ if __name__ == '__main__':
     results = []
     for ix, params in enumerate(param_grid):
         info = OrderedDict([
-            ('idx', ix),
+            ('idx', ix), # iteration index
+
+            # data params
             ('nsamples', params['nsamples']),
             ('dispersal', params['dispersal']),
             ('shrink', params['shrink']),
-            ('layers', '\"[{}]\"'.format(':'.join('{}'.format(s)
-                                                  for s in params['layers']))),
-            ('dropout', '{:.2f}'.format(params['dropout'])),
-            ('transfer_f', params['transfer_f']),
-            ('bnf_s', params['bnf_s']),
-            ('bnf_f', params['bnf_f']),
             ('batch_size', params['batch_size']),
+
+            # network params
+            ('hidden_pre', '\"[{}]\"'.format(
+                ':'.join('{}'.format(s)
+                         for s in params['hidden_pre']))),
+            ('dropout', '{:.2f}'.format(params['dropout'])),
+            ('hidden_f', params['hidden_f']),
+            ('bottleneck_size', params['bottleneck_size']),
+            ('bottleneck_f', params['bottleneck_f']),
+            ('hidden_post', '\"[{}]\"'.format(
+                ':'.join('{}'.format(s)
+                         for s in params['hidden_post']))),
+            ('output_f', params['output_f']),
+
+            # training params:
             ('patience', params['patience']),
             ('update', params['update']),
             ('momentum_start', params['momentum_start']),
@@ -164,15 +221,20 @@ if __name__ == '__main__':
             ('learning_rate_start', params['learning_rate_start']),
             ('learning_rate_stop', params['learning_rate_stop']),
             ('max_epochs', params['max_epochs'])])
+
         print pformat(dict(info))
         best_loss, best_epoch, history, network, prec, recall, fscore = \
             go(estimates, verbose=verbose, **params)
-        info.update(OrderedDict([
-            ('best_loss', best_loss),
-            ('best_ep', best_epoch),
-            ('precision', prec),
-            ('recall', recall),
-            ('fscore', fscore)]))
+
+        info.update(
+            OrderedDict([
+                ('best_loss', best_loss),
+                ('best_ep', best_epoch),
+                ('precision', prec),
+                ('recall', recall),
+                ('fscore', fscore)]
+            )
+        )
 
         results.append(info)
         print tabulate([OrderedDict([(k, v)
@@ -183,21 +245,25 @@ if __name__ == '__main__':
                         floatfmt='.5f',
                         tablefmt='simple')
 
-        fname = path.join(outdir, 'model_{}.pkl'.format(ix))
-        with open(fname, 'wb') as fout:
-            model = dict(
-                descr="""Trained network.""",
-                config=params,
-                loss=best_loss,
-                epoch=best_epoch,
-                history=history,
-                network=network)
-            pickle.dump(model, fout, -1)
+        save_history(history,
+                     path.join(outdir, 'model_{}.history'.format(ix)))
+
+        out_params = dict(
+            batch_size=params['batch_size'],
+            hidden_pre=params['hidden_pre'],
+            dropout=params['dropout'],
+            hidden_f=params['hidden_f'],
+            bottleneck_size=params['bottleneck_size'],
+            bottleneck_f=params['bottleneck_f'],
+            hidden_post=params['hidden_post'],
+            output_f=params['output_f']
+        )
+        save_model(network, out_params,
+                   path.join(outdir, 'model_{}.pkl'.format(ix)))
+
 
     print tabulate(results, headers='keys', floatfmt='.5f')
     with open(path.join(outdir, 'results_table.csv'), 'w') as fout:
         fout.write(','.join(results[0].keys()) + '\n')
         fout.write('\n'.join([','.join([str(v) for v in row.values()])
                               for row in results]))
-        # fout.write(tabulate(results, headers='keys',
-        #            floatfmt='.5f', tablefmt='plain'))

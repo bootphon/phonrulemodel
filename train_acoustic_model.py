@@ -21,18 +21,19 @@ from __future__ import division
 import itertools
 import time
 import cPickle as pickle
+from collections import OrderedDict
 
 import numpy as np
-from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 import theano
 import theano.tensor as T
 import lasagne
-from lasagne.layers import DenseLayer, InputLayer, DropoutLayer, \
-    get_output, get_all_param_values, set_all_param_values, get_all_params
-from lasagne.nonlinearities import linear, leaky_rectify, softmax, \
-    tanh, rectify
+from lasagne.layers import get_output, get_all_params, get_all_param_values, \
+    set_all_param_values
 
-from util import verb_print, ProgressPrinter
+
+from dnn import build_model, save_model
+from util import verb_print, ProgressPrinter, save_history
 
 
 def float32(x):
@@ -117,58 +118,9 @@ def build_dataset(X, y, labels, test_prop=0.2, valid_prop=0.2,
     )
 
 
-def build_model(input_dim, output_dim,
-                hidden_layers=(1000, 1000),
-                transfer_func='rectify',
-                batch_size=100, dropout=0,
-                nbottleneck=25,
-                bottleneck_func='linear'):
-    """
-    If bottleneck = True, a bottleneck hiddenlayer of with bsize nodes is added
-    """
-    transfer_funcs = {'rectify': rectify,
-                      'sigmoid': T.nnet.hard_sigmoid,
-                      'tanh': tanh,
-                      'leaky_rectify': leaky_rectify,
-                      'linear': linear}
-    transfer_func = transfer_funcs[transfer_func]
-    bottleneck_func = transfer_funcs[bottleneck_func]
-    l_in = InputLayer(shape=(batch_size, input_dim))
-    last = l_in
-    for ix, size in enumerate(hidden_layers[:-1]):
-        l_hidden = DenseLayer(
-            last, num_units=size,
-            nonlinearity=transfer_func,
-            W=lasagne.init.GlorotUniform())
-        if dropout > 0:
-            l_dropout = DropoutLayer(l_hidden, p=dropout)
-            last = l_dropout
-        else:
-            last = l_hidden
-
-    if nbottleneck > 0:
-        l_bottleneck = DenseLayer(
-            last, num_units=nbottleneck,
-            name='bottleneck',
-            nonlinearity=bottleneck_func,
-            W=lasagne.init.GlorotUniform())
-        last = l_bottleneck
-
-    l_last_dense = DenseLayer(
-        last, num_units=hidden_layers[-1],
-        nonlinearity=transfer_func,
-        W=lasagne.init.GlorotUniform())
-    if dropout > 0:
-        l_last_dense = DropoutLayer(l_last_dense, p=dropout)
-    l_out = DenseLayer(l_last_dense, num_units=output_dim,
-                       nonlinearity=softmax,
-                       W=lasagne.init.GlorotUniform())
-    return l_out
-
-
 def create_iter_funcs(dataset, output_layer,
                       X_tensor_type=T.matrix,
-                      batch_size=300,
+                      batch_size=100,
                       update='nesterov',
                       learning_rate=0.01,
                       momentum=0.9):
@@ -195,13 +147,6 @@ def create_iter_funcs(dataset, output_layer,
     accuracy = T.mean(T.eq(pred, y_batch), dtype=theano.config.floatX)
 
     all_params = get_all_params(output_layer)
-    # updates = lasagne.updates.adadelta(
-    #     loss_or_grads=loss_train,
-    #     params=all_params,
-    #     learning_rate=1.0,
-    #     rho=0.95,
-    #     epsilon=1e-6
-    #     )
     if update == 'sgd':
         updates = lasagne.updates.sgd(
             loss_or_grads=loss_train,
@@ -213,7 +158,6 @@ def create_iter_funcs(dataset, output_layer,
             params=all_params,
             learning_rate=learning_rate,
             momentum=momentum)
-
 
     iter_train = theano.function(
         [batch_index], loss_train,
@@ -246,13 +190,12 @@ def create_iter_funcs(dataset, output_layer,
         test=iter_test
     )
 
-def train(iter_funcs, dataset, batch_size=300, test_every=100):
+def train(iter_funcs, dataset, batch_size=300):
     """Train the model with `dataset` with mini-batch training. Each
        mini-batch has `batch_size` recordings.
     """
     num_batches_train = dataset['num_examples_train'] // batch_size
     num_batches_valid = dataset['num_examples_valid'] // batch_size
-    # num_batches_test = dataset['num_examples_test'] // batch_size
 
     for epoch in itertools.count(1):
         batch_train_losses = []
@@ -272,15 +215,6 @@ def train(iter_funcs, dataset, batch_size=300, test_every=100):
         avg_valid_loss = np.mean(batch_valid_losses)
         avg_valid_accuracy = np.mean(batch_valid_accuracies)
 
-        # if epoch % test_every == 0:
-        #     batch_test_accuracies = []
-        #     for b in xrange(num_batches_test):
-        #         _, batch_test_accuracy = iter_funcs['test'](b)
-        #         batch_test_accuracies.append(batch_test_accuracy)
-        #     avg_test_accuracy = np.mean(batch_test_accuracies)
-        # else:
-        #     avg_test_accuracy = np.nan
-
         yield {
             'number': epoch,
             'train_loss': avg_train_loss,
@@ -290,8 +224,12 @@ def train(iter_funcs, dataset, batch_size=300, test_every=100):
         }
 
 
-def train_loop(output_layer, iter_funcs, dataset, batch_size, max_epochs,
-               test_every=100, patience=100,
+def train_loop(output_layer,
+               iter_funcs,
+               dataset,
+               batch_size,
+               max_epochs,
+               patience=100,
                learning_rate_start=theano.shared(float32(0.03)),
                learning_rate_stop=theano.shared(float32(0.001)),
                momentum_start=theano.shared(float32(0.9)),
@@ -314,23 +252,23 @@ def train_loop(output_layer, iter_funcs, dataset, batch_size, max_epochs,
         printer = ProgressPrinter(color=True)
     try:
         for epoch in train(iter_funcs, dataset,
-                           batch_size=batch_size, test_every=test_every):
+                           batch_size=batch_size):
             epoch_number = epoch['number']
             train_loss = epoch['train_loss']
             valid_loss = epoch['valid_loss']
             valid_acc = epoch['valid_accuracy']
-            info = dict(
-                epoch=epoch_number,
-                train_loss=train_loss,
-                train_loss_best=train_loss <= best_train_loss,
-                train_loss_worse=train_loss > history[-1]['train_loss']
-                  if len(history) > 0 else False,
-                valid_loss=valid_loss,
-                valid_loss_best=valid_loss <= best_valid_loss,
-                valid_loss_worse=valid_loss > history[-1]['valid_loss']
-                  if len(history) > 0 else False,
-                valid_accuracy=valid_acc,
-                duration=time.time() - now)
+            info = OrderedDict([
+                ('epoch', epoch_number),
+                ('train_loss', train_loss),
+                ('train_loss_best', train_loss <= best_train_loss),
+                ('train_loss_worse', train_loss > history[-1]['train_loss']
+                 if len(history) > 0 else False),
+                ('valid_loss', valid_loss),
+                ('valid_loss_best', valid_loss <= best_valid_loss),
+                ('valid_loss_worse', valid_loss > history[-1]['valid_loss']
+                 if len(history) > 0 else False),
+                ('valid_accuracy', valid_acc),
+                ('duration', time.time() - now)])
             history.append(info)
             now = time.time()
             if verbose:
@@ -368,21 +306,23 @@ def train_loop(output_layer, iter_funcs, dataset, batch_size, max_epochs,
 
 
 def main(dataset,
-         layers=(100, 100),
-         dropout=0.5,
-         transfer_func='rectify',
-         nbottleneck=25,
-         bottleneck_func='linear',
-         max_epochs=1000,
          batch_size=1000,
+         hidden_pre=(100, 100),
+         dropout=0.5,
+         hidden_f='rectify',
+         bottleneck_size=5,
+         bottleneck_f='linear',
+         hidden_post=(),
+         output_f='softmax',
+
+         max_epochs=100,
          patience=100,
          update='sgd',
-         learning_rate_start=0.05,
+         learning_rate_start=0.01,
          learning_rate_stop=0.001,
          momentum_start=0.9,
          momentum_stop=0.999,
          momentum=0.9,
-         test_every=100,
          verbose=True):
     """Build and train a network.
 
@@ -403,14 +343,16 @@ def main(dataset,
     momentum_stop = theano.shared(float32(momentum_stop))
 
     output_layer = build_model(
+        batch_size=batch_size,
         input_dim=dataset['input_dim'],
         output_dim=dataset['output_dim'],
-        hidden_layers=layers,
-        transfer_func=transfer_func,
+        hidden_pre=hidden_pre,
         dropout=dropout,
-        batch_size=batch_size,
-        nbottleneck=nbottleneck,
-        bottleneck_func=bottleneck_func)
+        hidden_f=hidden_f,
+        bottleneck_size=bottleneck_size,
+        bottleneck_f=bottleneck_f,
+        hidden_post=hidden_post,
+        output_f=output_f)
 
     iter_funcs = create_iter_funcs(
         dataset, output_layer,
@@ -421,7 +363,7 @@ def main(dataset,
 
     loss, epoch, weights, history = train_loop(
         output_layer, iter_funcs, dataset, batch_size, max_epochs,
-        test_every, patience, learning_rate_start, learning_rate_stop,
+        patience, learning_rate_start, learning_rate_stop,
         momentum_start, momentum_stop)
 
     set_all_param_values(output_layer, weights)
@@ -455,7 +397,7 @@ needs to have X, y and labels keys.
         parser.add_argument('nunits', metavar='NUNITS',
                             nargs=1,
                             help='number of units in hidden layers')
-        parser.add_argument('nbottleneck', metavar='NBOTTLENECK',
+        parser.add_argument('bottleneck_size', metavar='BOTTLENECK_SIZE',
                             nargs=1,
                             help='number of bottleneck features')
         parser.add_argument('nepochs', metavar='NEPOCHS',
@@ -487,12 +429,12 @@ needs to have X, y and labels keys.
 
 
     args = parse_args()
-    num_epochs = int(args['nepochs'][0])
+    max_epochs = int(args['nepochs'][0])
     npzfile = args['input'][0]
     output = args['output'][0]
 
     batch_size = int(args['batch_size'][0])
-    nbottleneck = int(args['nbottleneck'][0])
+    bottleneck_size = int(args['bottleneck_size'][0])
     nunits = int(args['nunits'][0])
     nlayers = int(args['nlayers'][0])
     dropout = float(args['dropout'])
@@ -509,17 +451,34 @@ needs to have X, y and labels keys.
             test=test)
 
     config = dict(
-        layers=[nunits]*nlayers,
-        dropout=dropout,
-        transfer_func='rectify',
-        nbottleneck=nbottleneck,
-        bottleneck_func='linear',
-        max_epochs=num_epochs,
         batch_size=batch_size,
+        hidden_pre=[nunits]*(nlayers-1),
+        dropout=dropout,
+        hidden_f='rectify',
+        bottleneck_size=bottleneck_size,
+        bottleneck_f='linear',
+        hidden_post=[nunits],
+        output_f='softmax',
+
+        max_epochs=max_epochs,
         patience=patience)
+
 
     loss, epoch, history, output_layer = main(dataset, verbose=verbose,
                                               **config)
+
+    out_params = dict(
+        batch_size=batch_size,
+        hidden_pre=[nunits]*(nlayers-1),
+        dropout=dropout,
+        hidden_f='rectify',
+        bottleneck_size=bottleneck_size,
+        bottleneck_f='linear',
+        hidden_post=[nunits],
+        output_f='softmax')
+    save_model(output_layer, out_params, output)
+
+    save_history(history, output + 'history')
 
     with open(output, 'wb') as fout:
         result = dict(
