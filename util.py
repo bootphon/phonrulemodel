@@ -24,6 +24,13 @@ from collections import OrderedDict
 
 from tabulate import tabulate
 
+def save_history(history, filename):
+    with open(filename, 'w') as fout:
+        fout.write(','.join(history[0].keys()) + '\n')
+        for info in history:
+            fout.write(','.join(map(str, info.values())) + '\n')
+
+
 @contextmanager
 def verb_print(msg, verbose=False):
     """Helper for verbose printing with timing around pieces of code.
