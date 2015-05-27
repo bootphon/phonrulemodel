@@ -168,16 +168,16 @@ if __name__ == '__main__':
             batch_size=[25000],
 
             # network params:
-            hidden_pre=[[2000, 2000], [2000, 2000, 2000]],
+            hidden_pre=[[1000, 1000, 1000]],
             dropout=[0.5],
             hidden_f=['rectify'],
             bottleneck_size=[5],
             bottleneck_f=['linear'],
-            hidden_post=[[2000], []],
+            hidden_post=[[1000]],
             output_f=['softmax'],
 
             # training params:
-            max_epochs=[20000],
+            max_epochs=[25000],
             patience=[1000],
             update=['nesterov'],
             learning_rate_start=[0.01],
