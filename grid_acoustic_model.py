@@ -122,20 +122,20 @@ if __name__ == '__main__':
             momentum_stop=[0.999])
     else:
         param_grid = dict(
-            nsamples=[5000],
+            nsamples=[2500],
             dispersal=[1],
             shrink=[0],
             layers=[[1000, 1000, 1000], [2000, 2000, 2000]],
             dropout=[0.5],
             transfer_f=['rectify'],
-            bnf_s=range(10, 20),
+            bnf_s=range(5, 16),
             bnf_f=['linear'],
             max_epochs=[5000],
             batch_size=[20000],
             patience=[100],
             update=['nesterov'],
             learning_rate_start=[0.05],
-            learning_rate_stop=[0.0001, 0.001],
+            learning_rate_stop=[0.001],
             momentum_start=[0.9],
             momentum_stop=[0.999])
 
