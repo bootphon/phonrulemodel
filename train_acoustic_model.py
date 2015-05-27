@@ -252,7 +252,7 @@ def train(iter_funcs, dataset, batch_size=300, test_every=100):
     """
     num_batches_train = dataset['num_examples_train'] // batch_size
     num_batches_valid = dataset['num_examples_valid'] // batch_size
-    num_batches_test = dataset['num_examples_test'] // batch_size
+    # num_batches_test = dataset['num_examples_test'] // batch_size
 
     for epoch in itertools.count(1):
         batch_train_losses = []
@@ -272,21 +272,21 @@ def train(iter_funcs, dataset, batch_size=300, test_every=100):
         avg_valid_loss = np.mean(batch_valid_losses)
         avg_valid_accuracy = np.mean(batch_valid_accuracies)
 
-        if epoch % test_every == 0:
-            batch_test_accuracies = []
-            for b in xrange(num_batches_test):
-                _, batch_test_accuracy = iter_funcs['test'](b)
-                batch_test_accuracies.append(batch_test_accuracy)
-            avg_test_accuracy = np.mean(batch_test_accuracies)
-        else:
-            avg_test_accuracy = np.nan
+        # if epoch % test_every == 0:
+        #     batch_test_accuracies = []
+        #     for b in xrange(num_batches_test):
+        #         _, batch_test_accuracy = iter_funcs['test'](b)
+        #         batch_test_accuracies.append(batch_test_accuracy)
+        #     avg_test_accuracy = np.mean(batch_test_accuracies)
+        # else:
+        #     avg_test_accuracy = np.nan
 
         yield {
             'number': epoch,
             'train_loss': avg_train_loss,
             'valid_loss': avg_valid_loss,
             'valid_accuracy': avg_valid_accuracy,
-            'test_accuracy': avg_test_accuracy
+            # 'test_accuracy': avg_test_accuracy
         }
 
 
@@ -301,8 +301,9 @@ def train_loop(output_layer, iter_funcs, dataset, batch_size, max_epochs,
     best_valid_epoch = 0
     best_train_loss = np.inf
     best_weights = None
-    learning_rates = np.linspace(
-        learning_rate_start.get_value(), learning_rate_stop.get_value(),
+    learning_rates = np.logspace(
+        np.log10(learning_rate_start.get_value()),
+        np.log10(learning_rate_stop.get_value()),
         max_epochs)
     momentums = np.linspace(
         momentum_start.get_value(), momentum_stop.get_value(), max_epochs)

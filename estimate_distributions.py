@@ -57,23 +57,27 @@ def make_intervals_dataframe(stimulus_dir, fix=False):
     # stimuli_dir = path.join(os.environ['HOME'], 'data', 'ingeborg_stimuli')
     intervals = []
     for tgfile in glob.iglob(path.join(stimulus_dir, '*.TextGrid')):
+
         with open(tgfile, 'r') as fid:
             tg = textgrid.TextGrid.read(fid)
         bname = path.splitext(path.basename(tgfile))[0]
         condition = bname.split('-')[1]
-        intervals.extend([Interval(bname, e.start, e.end, e.mark, condition)
-                          for e in tg.tiers[0].entries])
+        if bname == 'SEM-IDS':
+            label = ['s', 'e', 'm']
+            curr = [Interval(bname, e.start, e.end, label[i], condition)
+                    for i, e in enumerate(tg.tiers[0].entries)]
+            print curr
+        elif bname == 'TIL-ADS':
+            label = ['t', 'i', 'l']
+            curr = [Interval(bname, e.start, e.end, label[i], condition)
+                    for i, e in enumerate(tg.tiers[0].entries)]
+            print curr
+        else:
+            curr = [Interval(bname, e.start, e.end, e.mark, condition)
+                    for e in tg.tiers[0].entries]
+        intervals.extend(curr)
     intervals = pd.DataFrame(intervals, columns=columns)
     intervals['length'] = intervals.end - intervals.start
-
-    if fix:
-        # manually fix missing values
-        intervals.ix[393, 'phone'] = 's'
-        intervals.ix[394, 'phone'] = 'e'
-        intervals.ix[395, 'phone'] = 'm'
-        intervals.ix[504, 'phone'] = 't'
-        intervals.ix[505, 'phone'] = 'i'
-        intervals.ix[506, 'phone'] = 'l'
     return intervals
 
 
@@ -102,7 +106,7 @@ def extract_cepstra(df, stimulus_dir, normalize='cmvn', window_shift=0.005):
                              'normalization method')
     mfcc_config = dict(fs=44100, window_length=0.025, window_shift=window_shift,
                        nfft=2048, scale='mel', nfilt=40, taper_filt=True,
-                       deltas=False, do_dct=True, nceps=13, log_e=True,
+                       deltas=True, do_dct=True, nceps=13, log_e=True,
                        lifter=22, energy_compression='log', pre_emph=0.97)
     mfcc_encoder = spectral.Spectral(**mfcc_config)
     cepstra = {} # dict from filename to mfcc features in ndarray
