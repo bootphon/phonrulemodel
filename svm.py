@@ -55,7 +55,9 @@ if __name__ == '__main__':
     f = np.load(fname)
     X, y, labels = f['X'], f['y'], f['labels']
 
-    # 1. IDS
+    #######
+    # IDS #
+    #######
     ids_ixs = np.in1d(y, np.nonzero(labels[:, 1]=='IDS'))
     X_ids = X[ids_ixs]
     y_ids = y[ids_ixs]
@@ -72,12 +74,16 @@ if __name__ == '__main__':
 
     if verbose:
         print 'IDS:'
-        print classification_report(y_test, y_pred,
-                                    target_names=labels[labels[:,1]=='IDS'][:, 0])
+        print classification_report(
+            y_test, y_pred, target_names=labels[labels[:,1]=='IDS'][:, 0])
     else:
         print 'IDS f-score: {0:.3f}'.format(f1_score(y_test, y_pred,
                                                      average='weighted'))
 
+
+    #######
+    # ADS #
+    #######
     ads_ixs = np.in1d(y, np.nonzero(labels[:, 1]=='ADS'))
     X_ads = X[ads_ixs]
     y_ads = y[ads_ixs]
@@ -95,8 +101,36 @@ if __name__ == '__main__':
 
     if verbose:
         print 'ADS:'
-        print classification_report(y_test, y_pred,
-                                    target_names=labels[labels[:,1]=='ADS'][:, 0])
+        print classification_report(
+            y_test, y_pred, target_names=labels[labels[:,1]=='ADS'][:, 0])
     else:
         print 'ADS f-score: {0:.3f}'.format(f1_score(y_test, y_pred,
                                                      average='weighted'))
+
+    ########
+    # BOTH #
+    ########
+    ix2phone = dict(enumerate(labels[:, 0]))
+    phones = sorted(set(ix2phone.values()))
+    phone2newix = {p: ix for ix, p in enumerate(phones)}
+    y = np.array([phone2newix[ix2phone[i]] for i in y])
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y)
+
+    clf = GridSearchCV(
+        SVC(kernel='rbf'),
+        param_grid={'C':np.logspace(-2, 2, 20)},
+        scoring=make_scorer(partial(f1_score, average='weighted')),
+        n_jobs=n_jobs,
+        verbose=0 if verbose else 0
+    )
+    clf.fit(X_train, y_train)
+    y_pred = clf.predict(X_test)
+
+    if verbose:
+        print 'BOTH:'
+        print classification_report(
+            y_test, y_pred, target_names=phones)
+    else:
+        print 'BOTH f-score: {0:.3f}'.format(f1_score(y_test, y_pred,
+                                                      average='weighted'))
