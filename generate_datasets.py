@@ -107,12 +107,12 @@ def generate_test(df_test, estimates, nsamples, output, mean_dispersal_factor=1,
         x1       x2  y  setting x1_c1 x1_v x1_c2 x2_c1 x2_v x2_c2
     0   FIN-ADS  ZUL-ADS  1     ADS   F    I     N     Z    U     L
     """
-    df_x1_c1 = df_test['c1'].values
-    df_x1_v = df_test['v'].values
-    df_x1_c2 = df_test['c2'].values
-    df_x2_c1 = df_test['c1'].values
-    df_x2_v = df_test['v'].values
-    df_x2_c2 = df_test['c2'].values
+    df_x1_c1 = df_test['x1_c1'].values
+    df_x1_v = df_test['x1_v'].values
+    df_x1_c2 = df_test['x1_c2'].values
+    df_x2_c1 = df_test['x2_c1'].values
+    df_x2_v = df_test['x2_v'].values
+    df_x2_c2 = df_test['x2_c2'].values
     df_y = df_test['y'].values
     setting = df_test['setting'].values
 
@@ -123,28 +123,28 @@ def generate_test(df_test, estimates, nsamples, output, mean_dispersal_factor=1,
     x2_c1s = []
     x2_vs = []
     x2_c2s = []
-    x2_ys = []
+    ys = []
     
-    for i in range(len(df_c1)):
+    for i in range(len(df_x1_c1)):
         x1_c1 =  samples.get(df_x1_c1[i].lower())
         MFCCs_x1_c1 = x1_c1.get(setting[i])
-        x1_c1s.append(MFCCs_c1)
+        x1_c1s.append(MFCCs_x1_c1)
         x1_v =  samples.get(df_x1_v[i].lower())
         MFCCs_x1_v = x1_v.get(setting[i])
         x1_vs.append(MFCCs_x1_v)
         x1_c2 =  samples.get(df_x1_c2[i].lower())
         MFCCs_x1_c2 = x1_c2.get(setting[i])
-        x1_c2s.append(MFCCs_c2)
+        x1_c2s.append(MFCCs_x1_c2)
 
         x2_c1 =  samples.get(df_x2_c1[i].lower())
         MFCCs_x2_c1 = x2_c1.get(setting[i])
-        x2_c1s.append(MFCCs_c1)
+        x2_c1s.append(MFCCs_x2_c1)
         x2_v =  samples.get(df_x2_v[i].lower())
         MFCCs_x2_v = x2_v.get(setting[i])
         x2_vs.append(MFCCs_x2_v)
         x2_c2 =  samples.get(df_x2_c2[i].lower())
         MFCCs_x2_c2 = x2_c2.get(setting[i])
-        x2_c2s.append(MFCCs_c2)
+        x2_c2s.append(MFCCs_x2_c2)
 
         y = df_y[i]
         s = setting[i]
@@ -159,34 +159,21 @@ def generate_test(df_test, estimates, nsamples, output, mean_dispersal_factor=1,
 
     X_x1 = np.column_stack((x1_c1s,x1_vs,x1_c2s))
     X_x2 = np.column_stack((x2_c1s,x2_vs,x2_c2s))
-
-    X = np.column_stack(X_x1,X_x2)
-
-    y = np.array(ys)   #example: ['1' 'ADS']
-    
     labels = ['e','i','o','u','b','d','p','f','s','z','v','f']
     labels = np.array(labels)
-    
+    X = np.column_stack((X_x1, X_x2))
+    y = np.array(ys) #example: ['1' 'ADS']
     np.savez(output, X=X, y = y, labels = labels)
+        
+def generate_train(df_train, estimates, nsamples, output, mean_dispersal_factor=1, 
+        cov_shrink_factor=0, verbose=False):
 
-def generate_train(df_train, estimates, nsamples, output, mean_dispersal_factor=1, cov_shrink_factor=0,
-         verbose=False):
     with verb_print('transforming distributions', verbose=verbose):
         estimates = transform_estimates(estimates, mean_dispersal_factor,
                                         cov_shrink_factor)
-        
-    """
-    z': {'ADS': <scipy.stats._multivariate.multivariate_normal_frozen object at 0x1069e60d0>, 
-    'IDS': <scipy.stats._multivariate.multivariate_normal_frozen object at 0x1069e6150>}
+
+    samples = resample(estimates, nsamples)
     
-    54  ZUN-ADS  Z  U  N     ADS
-    55  ZUR-ADS  Z  U  R     ADS
-    56  PEM-ADS  P  E  M     ADS
-    57  PEL-ADS  P  E  L     ADS
-
-    """
-    samples = resample(estimates, nsamples)  
-
     df_c1 = df_train['c1'].values
     df_v = df_train['v'].values
     df_c2 = df_train['c2'].values
@@ -196,7 +183,7 @@ def generate_train(df_train, estimates, nsamples, output, mean_dispersal_factor=
     vs = []
     c2s = []
     ys = []
-   #print samples
+    #print samples
     for i in range(len(df_c1)):
         c1 =  samples.get(df_c1[i].lower())
         MFCCs_c1 = c1.get(setting[i])
@@ -301,12 +288,10 @@ def test_data(dir,estimates,output_dir):
 
         output = output_dir + 'test_condition' + str(counter)
         counter = counter + 1
-        generate_test(df_test,estimates,nsamples, output, 
-            mean_dispersal_factor=1, cov_shrink_factor=0,verbose=False)
+        generate_test(df_test,estimates,nsamples, output, mean_dispersal_factor=1, cov_shrink_factor=0,verbose=False)
         
 
 if __name__ == '__main__':
-
     nsamples = 1000
     input_fname = '/Users/ingeborg/Desktop/estimates.pkl'
     shrink = 0
@@ -319,10 +304,3 @@ if __name__ == '__main__':
 
     train_data(train_stimulus_dir,estimates, output_dir)
     test_data(test_stimulus_dir,estimates, output_dir)
-    
-    
-    
-    
-  
-    
-
