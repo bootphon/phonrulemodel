@@ -1,3 +1,7 @@
 /samples_disp1.0_shrunk0.0_small.npz
 /notebooks/
 /regression.py
+*.pyc
+*.npz
+*.pkl
+acoustic_models*/
