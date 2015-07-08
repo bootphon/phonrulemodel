@@ -107,44 +107,45 @@ def generate_test(df_test, estimates, nsamples, output, mean_dispersal_factor=1,
         x1       x2  y  setting x1_c1 x1_v x1_c2 x2_c1 x2_v x2_c2
     0   FIN-ADS  ZUL-ADS  1     ADS   F    I     N     Z    U     L
     """
-    df_x1_c1 = df_test['c1'].values
-    df_x1_v = df_test['v'].values
-    df_x1_c2 = df_test['c2'].values
-    df_x2_c1 = df_test['c1'].values
-    df_x2_v = df_test['v'].values
-    df_x2_c2 = df_test['c2'].values
+    df_x1_c1 = df_test['x1_c1'].values
+    df_x1_v = df_test['x1_v'].values
+    df_x1_c2 = df_test['x1_c2'].values
+    df_x2_c1 = df_test['x2_c1'].values
+    df_x2_v = df_test['x2_v'].values
+    df_x2_c2 = df_test['x2_c2'].values
     df_y = df_test['y'].values
     setting = df_test['setting'].values
 
     x1_c1s = []
     x1_vs = []
     x1_c2s = []
-    x1_ys = []
+    
     x2_c1s = []
     x2_vs = []
     x2_c2s = []
-    x2_ys = []
+
+    ys = []
     
-    for i in range(len(df_c1)):
+    for i in range(len(df_x1_c1)):
         x1_c1 =  samples.get(df_x1_c1[i].lower())
         MFCCs_x1_c1 = x1_c1.get(setting[i])
-        x1_c1s.append(MFCCs_c1)
+        x1_c1s.append(MFCCs_x1_c1)
         x1_v =  samples.get(df_x1_v[i].lower())
         MFCCs_x1_v = x1_v.get(setting[i])
         x1_vs.append(MFCCs_x1_v)
         x1_c2 =  samples.get(df_x1_c2[i].lower())
         MFCCs_x1_c2 = x1_c2.get(setting[i])
-        x1_c2s.append(MFCCs_c2)
+        x1_c2s.append(MFCCs_x1_c2)
 
         x2_c1 =  samples.get(df_x2_c1[i].lower())
         MFCCs_x2_c1 = x2_c1.get(setting[i])
-        x2_c1s.append(MFCCs_c1)
+        x2_c1s.append(MFCCs_x2_c1)
         x2_v =  samples.get(df_x2_v[i].lower())
         MFCCs_x2_v = x2_v.get(setting[i])
         x2_vs.append(MFCCs_x2_v)
         x2_c2 =  samples.get(df_x2_c2[i].lower())
         MFCCs_x2_c2 = x2_c2.get(setting[i])
-        x2_c2s.append(MFCCs_c2)
+        x2_c2s.append(MFCCs_x2_c2)
 
         y = df_y[i]
         s = setting[i]
@@ -160,7 +161,7 @@ def generate_test(df_test, estimates, nsamples, output, mean_dispersal_factor=1,
     X_x1 = np.column_stack((x1_c1s,x1_vs,x1_c2s))
     X_x2 = np.column_stack((x2_c1s,x2_vs,x2_c2s))
 
-    X = np.column_stack(X_x1,X_x2)
+    X = np.column_stack((X_x1,X_x2))
 
     y = np.array(ys)   #example: ['1' 'ADS']
     
@@ -220,7 +221,6 @@ def generate_train(df_train, estimates, nsamples, output, mean_dispersal_factor=
     
     labels = ['e','i','o','u','b','d','p','f','s','z','v','f']
     labels = np.array(labels)
-
     np.savez(output, X=X, y = y, labels = labels)
    
 
@@ -233,6 +233,7 @@ def train_data(dir,estimates,output_dir):
     header = ['stimulus']
     counter = 1
     for condition in glob.iglob(path.join(dir, '*.csv')):
+        print condition
         df_train = pd.read_csv(condition, names= header)
         stimulus = df_train['stimulus'].values
         c1 = []
@@ -308,12 +309,12 @@ def test_data(dir,estimates,output_dir):
 if __name__ == '__main__':
 
     nsamples = 1000
-    input_fname = '/Users/ingeborg/Desktop/estimates.pkl'
+    input_fname = '/Users/Research/projects/phonrulemodel/estimates.pkl'
     shrink = 0
     dispersal = 1
-    train_stimulus_dir = '/Users/ingeborg/phonrulemodel/conditions/train'
-    test_stimulus_dir = '/Users/ingeborg/phonrulemodel/conditions/test'
-    output_dir = '/Users/ingeborg/Desktop/'
+    train_stimulus_dir = '/Users/Research/phonrulemodel/conditions/train'
+    test_stimulus_dir = '/Users/Research/phonrulemodel/conditions/test'
+    output_dir = '/Users/Research/projects/phonrulemodel/'
 
     estimates = load_estimates(input_fname)
 
