@@ -103,6 +103,7 @@ if __name__ == '__main__':
         counter = counter + 1
 
     #repeat for testsets
+    counter = 1
     for condition in glob.iglob(path.join(dir_testsets, '*.npz')):
         dataset = np.load(condition)
         X, y, labels = dataset['X'], dataset['y'], dataset['labels']
@@ -163,7 +164,7 @@ if __name__ == '__main__':
         X = [bnf_1, bnf_2]
 
         #Save new datasets
-        output = output_dir_train + 'train_condition' + str(counter) + 'model2'
+        output = output_dir_test + 'test_condition' + str(counter) + 'model2'
         np.savez(output, X=X, y = y, labels = labels)
      
         counter = counter + 1
