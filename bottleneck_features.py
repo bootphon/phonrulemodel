@@ -44,7 +44,6 @@ def get_bottleneck_features(network, X):
 
 
 if __name__ == '__main__':
-    #TODO: Check if output is correct
     fmodel1 = '/Users/Research/projects/phonrulemodel/model_69_1.pkl'
     fmodel2 = '/Users/Research/projects/phonrulemodel/model_69_2.pkl'
     dir_trainsets ='/Users/Research/projects/phonrulemodel/trainsets'
