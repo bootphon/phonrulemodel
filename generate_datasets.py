@@ -116,59 +116,84 @@ def generate_test(df_test, estimates, nsamples, output, mean_dispersal_factor=1,
     df_y = df_test['y'].values
     setting = df_test['setting'].values
 
-    x1_c1s = []
-    x1_vs = []
-    x1_c2s = []
+    #x1_c1s = []
+    #x1_vs = []
+    #x1_c2s = []
     
-    x2_c1s = []
-    x2_vs = []
-    x2_c2s = []
+    #x2_c1s = []
+    #x2_vs = []
+    #x2_c2s = []
 
-    ys = []
+    #ys = []
     
+    x1 = []
+    y1 = []
+    x2 = []
+    y2 = []
+    info = []
+
     for i in range(len(df_x1_c1)):
         x1_c1 =  samples.get(df_x1_c1[i].lower())
         MFCCs_x1_c1 = x1_c1.get(setting[i])
-        x1_c1s.append(MFCCs_x1_c1)
+        x1.append(MFCCs_x1_c1)
+        #x1_c1s.append(MFCCs_x1_c1)
         x1_v =  samples.get(df_x1_v[i].lower())
         MFCCs_x1_v = x1_v.get(setting[i])
-        x1_vs.append(MFCCs_x1_v)
+        y1.append(MFCCs_x1_v)
+        x1.append(MFCCs_x1_v)
+        #x1_vs.append(MFCCs_x1_v)
         x1_c2 =  samples.get(df_x1_c2[i].lower())
         MFCCs_x1_c2 = x1_c2.get(setting[i])
-        x1_c2s.append(MFCCs_x1_c2)
+        y1.append(MFCCs_x1_c2)
+        #x1_c2s.append(MFCCs_x1_c2)
 
         x2_c1 =  samples.get(df_x2_c1[i].lower())
         MFCCs_x2_c1 = x2_c1.get(setting[i])
-        x2_c1s.append(MFCCs_x2_c1)
+        x2.append(MFCCs_x2_c1)
+        #x2_c1s.append(MFCCs_x2_c1)
         x2_v =  samples.get(df_x2_v[i].lower())
         MFCCs_x2_v = x2_v.get(setting[i])
-        x2_vs.append(MFCCs_x2_v)
+        y2.append(MFCCs_x2_v)
+        x2.append(MFCCs_x2_v)
+        #x2_vs.append(MFCCs_x2_v)
         x2_c2 =  samples.get(df_x2_c2[i].lower())
         MFCCs_x2_c2 = x2_c2.get(setting[i])
-        x2_c2s.append(MFCCs_x2_c2)
+        y2.append(MFCCs_x2_c2)
+        #x2_c2s.append(MFCCs_x2_c2)
 
-        y = df_y[i]
+        #y = df_y[i]
+        correct = df_y[i]
         s = setting[i]
-        ys.append([y,s])
+        #ys.append([y,s])
+        info.append([correct, s])
 
-    x1_c1s = np.array(x1_c1s)
-    x1_vs = np.array(x1_vs)
-    x1_c2s = np.array(x1_c2s)   
-    x2_c1s = np.array(x2_c1s)
-    x2_vs = np.array(x2_vs)
-    x2_c2s = np.array(x2_c2s)   
+    #x1_c1s = np.array(x1_c1s)
+    #x1_vs = np.array(x1_vs)
+    #x1_c2s = np.array(x1_c2s)   
+    #x2_c1s = np.array(x2_c1s)
+    #x2_vs = np.array(x2_vs)
+    #x2_c2s = np.array(x2_c2s)   
 
-    X_x1 = np.column_stack((x1_c1s,x1_vs,x1_c2s))
-    X_x2 = np.column_stack((x2_c1s,x2_vs,x2_c2s))
+    #X_x1 = np.column_stack((x1_c1s,x1_vs,x1_c2s))
+    #X_x2 = np.column_stack((x2_c1s,x2_vs,x2_c2s))
 
-    X = np.column_stack((X_x1,X_x2))
+    x1 = np.array(x1)
+    x2 = np.array(x2)
+    y1 = np.array(y1)
+    y2 = np.array(y2)
+    info = np.array(info)
 
-    y = np.array(ys)   #example: ['1' 'ADS']
+    X = np.column_stack((x1,x2))
+    y = np.column_stack((y1,y2))
+
+    #X = np.column_stack((X_x1,X_x2))
+
+    #y = np.array(ys)   #example: ['1' 'ADS']
     
     labels = ['e','i','o','u','b','d','p','f','s','z','v','f']
     labels = np.array(labels)
     
-    np.savez(output, X=X, y = y, labels = labels)
+    np.savez(output, X=X, y = y, labels = labels, info = info)
 
 def generate_train(df_train, estimates, nsamples, output, mean_dispersal_factor=1, cov_shrink_factor=0,
          verbose=False):
@@ -193,35 +218,44 @@ def generate_train(df_train, estimates, nsamples, output, mean_dispersal_factor=
     df_c2 = df_train['c2'].values
     setting = df_train['setting'].values
 
-    c1s = []
-    vs = []
-    c2s = []
-    ys = []
+    #c1s = []
+    #vs = []
+    #c2s = []
+    #ys = []
+
+    x = []
+    y = []
+    info = []
    #print samples
     for i in range(len(df_c1)):
         c1 =  samples.get(df_c1[i].lower())
         MFCCs_c1 = c1.get(setting[i])
-        c1s.append(MFCCs_c1)
+        x.append(MFCCs_c1)
+        #c1s.append(MFCCs_c1)
         v =  samples.get(df_v[i].lower())
         MFCCs_v = v.get(setting[i])
-        vs.append(MFCCs_v)
+        y.append(MFCCs_v)
+        x.append(MFCCs_v)
+        #vs.append(MFCCs_v)
         c2 =  samples.get(df_c2[i].lower())
         MFCCs_c2 = c2.get(setting[i])
-        c2s.append(MFCCs_c2)
-        y = [df_c1[i].lower(),df_v[i].lower(),df_c2[i].lower()]
+        #c2s.append(MFCCs_c2)
+        y.append(MFCCs_c2)
+
+        stimulus = [df_c1[i].lower(),df_v[i].lower(),df_c2[i].lower()]
         s = setting[i]
-        ys.append([y,s])
+        info.append([stimulus,s])
 
-    c1s = np.array(c1s)
-    vs = np.array(vs)
-    c2s = np.array(c2s)    
+    x = np.array(x)
+    y = np.array(y)
+    info = np.array(info)   
 
-    X = np.column_stack((c1s,vs,c2s))
-    y = np.array(ys)   #example: [['d', 'o', 'n'] 'ADS']
+    #X = np.column_stack((c1s,vs,c2s))
+    #y = np.array(ys)   #example: [['d', 'o', 'n'] 'ADS']
     
     labels = ['e','i','o','u','b','d','p','f','s','z','v','f']
     labels = np.array(labels)
-    np.savez(output, X=X, y = y, labels = labels)
+    np.savez(output, X=x, y = y, labels = labels, info = info)
    
 
 def load_estimates(fname):
@@ -263,6 +297,7 @@ def train_data(dir,estimates,output_dir):
 def test_data(dir,estimates,output_dir):
     counter = 1
     for condition in glob.iglob(path.join(dir, '*.csv')):
+        print condition
         df_test = pd.read_csv(condition, names= ['x1','x2','y','setting'])
         x1 = df_test['x1'].values
         x2 = df_test['x2'].values
