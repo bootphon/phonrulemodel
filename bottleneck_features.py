@@ -73,9 +73,9 @@ if __name__ == '__main__':
         bnf_info = []
 
         length1 = X.shape[0]
-        length1 = 1
+        #length1 = 1
         length2 = X[0].shape[0]
-        length2 = 1
+        #length2 = 1
         for i in range(length1):
             for j in range(length2):
                 #print j
