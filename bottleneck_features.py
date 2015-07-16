@@ -27,7 +27,6 @@ from lasagne.layers import \
 from dnn import load_model
 
 import numpy as np
-from sklearn import svm
 
 def get_bottleneck_features(network, X):
     layers = get_all_layers(network)
@@ -73,21 +72,18 @@ if __name__ == '__main__':
         bnf_Y = []
         bnf_info = []
 
-        length = X.shape[0]
-        length = 1
-        for i in range(length):
-            for j in range(X[0].shape[0]):
+        length1 = X.shape[0]
+        length1 = 1
+        length2 = X[0].shape[0]
+        length2 = 1
+        for i in range(length1):
+            for j in range(length2):
                 #print j
                 bnfx = get_bottleneck_features(model, X[i][j])
                 bnf_X.append(bnfx)
                 bnfy = get_bottleneck_features(model, y[i][j])
                 bnf_Y.append(bnfy)
                 bnf_info.append(info[i])
-
-
-        #bnf_X = get_bottleneck_features(model, X)
-        #bnf_Y = get_bottleneck_features(model, y)
-        print bnf_X.shape
 
         #Save new datasets
         output = output_dir_train + 'train_condition' + str(counter) + 'model1'
@@ -101,21 +97,18 @@ if __name__ == '__main__':
         bnf_X = []
         bnf_Y = []
         bnf_info = []
-        length = X.shape[0]
-        length = 1
-        for i in range(length):
-            for j in range(X[0].shape[0]):
+        length1 = X.shape[0]
+        #length1 = 1
+        length2 = X[0].shape[0]
+        #length2 = 1
+        for i in range(length1):
+            for j in range(length2):
                 #print j
                 bnfx = get_bottleneck_features(model, X[i][j])
                 bnf_X.append(bnfx)
                 bnfy = get_bottleneck_features(model, y[i][j])
                 bnf_Y.append(bnfy)
                 bnf_info.append(info[i])
-
-
-        #bnf_X = get_bottleneck_features(model, X)
-        #bnf_Y = get_bottleneck_features(model, y)
-        print bnf_X.shape
 
         #Save new datasets
         output = output_dir_train + 'train_condition' + str(counter) + 'model2'
@@ -144,10 +137,12 @@ if __name__ == '__main__':
         bnf_X2 = []
         bnf_Y2 = []
         bnf_info = []
-        length = X.shape[0]
-        length = 1
-        for i in range(length):
-            for j in range(X[0].shape[0]):
+        length1 = X1.shape[0]
+        #length1 = 1
+        length2 = X1[0].shape[0]
+        #length2 = 1
+        for i in range(length1):
+            for j in range(length2):
                 #print j
                 bnfx1 = get_bottleneck_features(model, X[i][j])
                 bnf_X1.append(bnfx1)
@@ -160,11 +155,6 @@ if __name__ == '__main__':
                 bnf_Y2.append(bnfy2)
 
                 bnf_info.append(info[i])
-
-
-        #bnf_X = get_bottleneck_features(model, X)
-        #bnf_Y = get_bottleneck_features(model, y)
-        print bnf_X.shape
 
         #Save new datasets
         output = output_dir_test + 'test_condition' + str(counter) + 'model1'
@@ -180,10 +170,12 @@ if __name__ == '__main__':
         bnf_X2 = []
         bnf_Y2 = []
         bnf_info = []
-        length = X.shape[0]
-        length = 1
-        for i in range(length):
-            for j in range(X[0].shape[0]):
+        length1 = X1.shape[0]
+        #length1 = 1
+        length2 = X1[0].shape[0]
+        #length2 = 1
+        for i in range(length1):
+            for j in range(length2):
                 #print j
                 bnfx1 = get_bottleneck_features(model, X[i][j])
                 bnf_X1.append(bnfx1)
