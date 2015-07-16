@@ -134,6 +134,10 @@ def generate_test(df_test, estimates, nsamples, output, mean_dispersal_factor=1,
         MFCCs_x1_c2 = x1_c2.get(setting[i])
         y1.append(MFCCs_x1_c2)
 
+        correct = df_y[i]
+        s = setting[i]
+        info.append([correct, s])
+
         x2_c1 =  samples.get(df_x2_c1[i].lower())
         MFCCs_x2_c1 = x2_c1.get(setting[i])
         x2.append(MFCCs_x2_c1)
@@ -145,8 +149,6 @@ def generate_test(df_test, estimates, nsamples, output, mean_dispersal_factor=1,
         MFCCs_x2_c2 = x2_c2.get(setting[i])
         y2.append(MFCCs_x2_c2)
 
-        correct = df_y[i]
-        s = setting[i]
         info.append([correct, s])
 
     x1 = np.array(x1) 
@@ -154,6 +156,10 @@ def generate_test(df_test, estimates, nsamples, output, mean_dispersal_factor=1,
     y1 = np.array(y1)
     y2 = np.array(y2)
     info = np.array(info)   #example: ['1' 'ADS']
+
+    #print x1.shape
+    #print y1.shape
+    #print info.shape
     
     labels = ['e','i','o','u','b','d','p','f','s','z','v','f']
     labels = np.array(labels)
@@ -194,18 +200,25 @@ def generate_train(df_train, estimates, nsamples, output, mean_dispersal_factor=
         v =  samples.get(df_v[i].lower())
         MFCCs_v = v.get(setting[i])
         y.append(MFCCs_v)
-        x.append(MFCCs_v)
-        c2 =  samples.get(df_c2[i].lower())
-        MFCCs_c2 = c2.get(setting[i])
-        y.append(MFCCs_c2)
 
         stimulus = [df_c1[i].lower(),df_v[i].lower(),df_c2[i].lower()]
         s = setting[i]
         info.append([stimulus,s])
 
+        x.append(MFCCs_v)
+        c2 =  samples.get(df_c2[i].lower())
+        MFCCs_c2 = c2.get(setting[i])
+        y.append(MFCCs_c2)
+
+        info.append([stimulus,s])
+
     x = np.array(x)             #example: [MFCC_C1]
     y = np.array(y)             #example: [MFCC_V]
     info = np.array(info)       #example: [['d', 'o', 'n'] 'ADS']
+
+    #print x.shape
+    #print y.shape
+    #print info.shape
 
     labels = ['e','i','o','u','b','d','p','f','s','z','v','f']
     labels = np.array(labels)
