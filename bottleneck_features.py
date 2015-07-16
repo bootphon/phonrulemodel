@@ -56,48 +56,32 @@ if __name__ == '__main__':
 
     for condition in glob.iglob(path.join(dir_trainsets, '*.npz')):
         dataset = np.load(condition)
-        X, y, labels = dataset['X'], dataset['y'], dataset['labels']
-
-        #Split X = [c1,v,c2] into c1, v & c2 - arrays
-        c1 = []
-        v = []
-        c2 = []
-        for i in range(len(X)):
-            c1.append(X[i][0])
-            v.append(X[i][1])
-            c2.append(X[i][2])
+        print dataset
+        X, y, labels, info = dataset['X'], dataset['y'], dataset['labels'], dataset['info']
 
         #Generate BNFs with model 1
         model = load_model(fmodel1)
         #for layer in get_all_layers(model):
         #    print layer.name, get_output_shape(layer)
-         
-        bnf_c1 = get_bottleneck_features(model, c1)
-        bnf_v = get_bottleneck_features(model, v)
-        bnf_c2 = get_bottleneck_features(model, c2)
 
-        #Merge the arrays together
-        X = np.column_stack((bnf_c1,bnf_v,bnf_c2))
+        bnf_X = get_bottleneck_features(model, X)
+        bnf_Y = get_bottleneck_features(model, y)
 
         #Save new datasets
         output = output_dir_train + 'train_condition' + str(counter) + 'model1'
-        np.savez(output, X=X, y = y, labels = labels)
+        np.savez(output, X=X, y = y, labels = labels, info = info)
 
         #Generate BNFs with model 2
         model = load_model(fmodel2)
         #for layer in get_all_layers(model):
         #    print layer.name, get_output_shape(layer)
 
-        bnf_c1 = get_bottleneck_features(model, c1)
-        bnf_v = get_bottleneck_features(model, v)
-        bnf_c2 = get_bottleneck_features(model, c2)
-
-        #Merge the arrays together
-        X = np.column_stack((bnf_c1,bnf_v,bnf_c2))
+        bnf_X = get_bottleneck_features(model, X)
+        bnf_Y = get_bottleneck_features(model, y)
 
         #Save new datasets
         output = output_dir_train + 'train_condition' + str(counter) + 'model2'
-        np.savez(output, X=X, y = y, labels = labels)
+        np.savez(output, X=X, y = y, labels = labels, info = info)
      
         counter = counter + 1
 
@@ -105,66 +89,34 @@ if __name__ == '__main__':
     counter = 1
     for condition in glob.iglob(path.join(dir_testsets, '*.npz')):
         dataset = np.load(condition)
-        X, y, labels = dataset['X'], dataset['y'], dataset['labels']
-
-        #Split X = [[c1,v,c2],[c1,v,c2] into c1, v & c2 - arrays
-        c1_1 = []
-        v_1 = []
-        c2_1 = []
-        c1_2 = []
-        v_2 = []
-        c2_2 = []
-        for i in range(len(X)):
-            c1_1.append(X[i][0][0])
-            v_1.append(X[i][0][1])
-            c2_1.append(X[i][0][2])
-            c1_2.append(X[i][1][0])
-            v_2.append(X[i][1][1])
-            c2_2.append(X[i][1][2])
+        X1, X2, y1, y2, labels, info = dataset['X1'], dataset['X2'],dataset['y1'], dataset['y2'], dataset['labels'], dataset['info']
 
         #Generate BNFs with model 1
         model = load_model(fmodel1)
         #for layer in get_all_layers(model):
         #    print layer.name, get_output_shape(layer)
-         
-        bnf_c1_1 = get_bottleneck_features(model, c1_1)
-        bnf_v_1 = get_bottleneck_features(model, v_1)
-        bnf_c2_1 = get_bottleneck_features(model, c2_1)
-        bnf_c1_2 = get_bottleneck_features(model, c1_2)
-        bnf_v_2 = get_bottleneck_features(model, v_2)
-        bnf_c2_2 = get_bottleneck_features(model, c2_2)
-
-        #Merge the arrays together
-        bnf_1 = np.column_stack((bnf_c1_1,bnf_v_1,bnf_c2_1))
-        bnf_2 = np.column_stack((bnf_c1_2,bnf_v_2,bnf_c2_2))
-
-        X = [bnf_1, bnf_2]
-
+     
+        bnf_X1 = get_bottleneck_features(model, X1)
+        bnf_X2 = get_bottleneck_features(model, X2)
+        bnf_y1 = get_bottleneck_features(model, y1)
+        bnf_y2 = get_bottleneck_features(model, y2)
         #Save new datasets
         output = output_dir_test + 'test_condition' + str(counter) + 'model1'
-        np.savez(output, X=X, y = y, labels = labels)
+        np.savez(output, X1=bnf_X1, X2 = bnf_X2, y1 = bnf_y1, y2 = bnf_y2, labels = labels, info = info)
 
         #Generate BNFs with model 2
         model = load_model(fmodel2)
         #for layer in get_all_layers(model):
         #    print layer.name, get_output_shape(layer)
 
-        bnf_c1_1 = get_bottleneck_features(model, c1_1)
-        bnf_v_1 = get_bottleneck_features(model, v_1)
-        bnf_c2_1 = get_bottleneck_features(model, c2_1)
-        bnf_c1_2 = get_bottleneck_features(model, c1_2)
-        bnf_v_2 = get_bottleneck_features(model, v_2)
-        bnf_c2_2 = get_bottleneck_features(model, c2_2)
-
-        #Merge the arrays together
-        bnf_1 = np.column_stack((bnf_c1_1,bnf_v_1,bnf_c2_1))
-        bnf_2 = np.column_stack((bnf_c1_2,bnf_v_2,bnf_c2_2))
-
-        X = [bnf_1, bnf_2]
+        bnf_X1 = get_bottleneck_features(model, X1)
+        bnf_X2 = get_bottleneck_features(model, X2)
+        bnf_y1 = get_bottleneck_features(model, y1)
+        bnf_y2 = get_bottleneck_features(model, y2)
 
         #Save new datasets
         output = output_dir_test + 'test_condition' + str(counter) + 'model2'
-        np.savez(output, X=X, y = y, labels = labels)
+        np.savez(output, X1=bnf_X1, X2 = bnf_X2, y1 = bnf_y1, y2 = bnf_y2, labels = labels, info = info)
      
         counter = counter + 1
    

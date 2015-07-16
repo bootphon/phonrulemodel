@@ -115,16 +115,6 @@ def generate_test(df_test, estimates, nsamples, output, mean_dispersal_factor=1,
     df_x2_c2 = df_test['x2_c2'].values
     df_y = df_test['y'].values
     setting = df_test['setting'].values
-
-    #x1_c1s = []
-    #x1_vs = []
-    #x1_c2s = []
-    
-    #x2_c1s = []
-    #x2_vs = []
-    #x2_c2s = []
-
-    #ys = []
     
     x1 = []
     y1 = []
@@ -136,64 +126,39 @@ def generate_test(df_test, estimates, nsamples, output, mean_dispersal_factor=1,
         x1_c1 =  samples.get(df_x1_c1[i].lower())
         MFCCs_x1_c1 = x1_c1.get(setting[i])
         x1.append(MFCCs_x1_c1)
-        #x1_c1s.append(MFCCs_x1_c1)
         x1_v =  samples.get(df_x1_v[i].lower())
         MFCCs_x1_v = x1_v.get(setting[i])
         y1.append(MFCCs_x1_v)
         x1.append(MFCCs_x1_v)
-        #x1_vs.append(MFCCs_x1_v)
         x1_c2 =  samples.get(df_x1_c2[i].lower())
         MFCCs_x1_c2 = x1_c2.get(setting[i])
         y1.append(MFCCs_x1_c2)
-        #x1_c2s.append(MFCCs_x1_c2)
 
         x2_c1 =  samples.get(df_x2_c1[i].lower())
         MFCCs_x2_c1 = x2_c1.get(setting[i])
         x2.append(MFCCs_x2_c1)
-        #x2_c1s.append(MFCCs_x2_c1)
         x2_v =  samples.get(df_x2_v[i].lower())
         MFCCs_x2_v = x2_v.get(setting[i])
         y2.append(MFCCs_x2_v)
         x2.append(MFCCs_x2_v)
-        #x2_vs.append(MFCCs_x2_v)
         x2_c2 =  samples.get(df_x2_c2[i].lower())
         MFCCs_x2_c2 = x2_c2.get(setting[i])
         y2.append(MFCCs_x2_c2)
-        #x2_c2s.append(MFCCs_x2_c2)
 
-        #y = df_y[i]
         correct = df_y[i]
         s = setting[i]
-        #ys.append([y,s])
         info.append([correct, s])
 
-    #x1_c1s = np.array(x1_c1s)
-    #x1_vs = np.array(x1_vs)
-    #x1_c2s = np.array(x1_c2s)   
-    #x2_c1s = np.array(x2_c1s)
-    #x2_vs = np.array(x2_vs)
-    #x2_c2s = np.array(x2_c2s)   
-
-    #X_x1 = np.column_stack((x1_c1s,x1_vs,x1_c2s))
-    #X_x2 = np.column_stack((x2_c1s,x2_vs,x2_c2s))
-
-    x1 = np.array(x1)
+    x1 = np.array(x1) 
     x2 = np.array(x2)
     y1 = np.array(y1)
     y2 = np.array(y2)
-    info = np.array(info)
-
-    X = np.column_stack((x1,x2))
-    y = np.column_stack((y1,y2))
-
-    #X = np.column_stack((X_x1,X_x2))
-
-    #y = np.array(ys)   #example: ['1' 'ADS']
+    info = np.array(info)   #example: ['1' 'ADS']
     
     labels = ['e','i','o','u','b','d','p','f','s','z','v','f']
     labels = np.array(labels)
     
-    np.savez(output, X=X, y = y, labels = labels, info = info)
+    np.savez(output, X1=x1, X2 = x2, y1 = y1, y2=y2, labels = labels, info = info)
 
 def generate_train(df_train, estimates, nsamples, output, mean_dispersal_factor=1, cov_shrink_factor=0,
          verbose=False):
@@ -218,11 +183,6 @@ def generate_train(df_train, estimates, nsamples, output, mean_dispersal_factor=
     df_c2 = df_train['c2'].values
     setting = df_train['setting'].values
 
-    #c1s = []
-    #vs = []
-    #c2s = []
-    #ys = []
-
     x = []
     y = []
     info = []
@@ -231,28 +191,22 @@ def generate_train(df_train, estimates, nsamples, output, mean_dispersal_factor=
         c1 =  samples.get(df_c1[i].lower())
         MFCCs_c1 = c1.get(setting[i])
         x.append(MFCCs_c1)
-        #c1s.append(MFCCs_c1)
         v =  samples.get(df_v[i].lower())
         MFCCs_v = v.get(setting[i])
         y.append(MFCCs_v)
         x.append(MFCCs_v)
-        #vs.append(MFCCs_v)
         c2 =  samples.get(df_c2[i].lower())
         MFCCs_c2 = c2.get(setting[i])
-        #c2s.append(MFCCs_c2)
         y.append(MFCCs_c2)
 
         stimulus = [df_c1[i].lower(),df_v[i].lower(),df_c2[i].lower()]
         s = setting[i]
         info.append([stimulus,s])
 
-    x = np.array(x)
-    y = np.array(y)
-    info = np.array(info)   
+    x = np.array(x)             #example: [MFCC_C1]
+    y = np.array(y)             #example: [MFCC_V]
+    info = np.array(info)       #example: [['d', 'o', 'n'] 'ADS']
 
-    #X = np.column_stack((c1s,vs,c2s))
-    #y = np.array(ys)   #example: [['d', 'o', 'n'] 'ADS']
-    
     labels = ['e','i','o','u','b','d','p','f','s','z','v','f']
     labels = np.array(labels)
     np.savez(output, X=x, y = y, labels = labels, info = info)
@@ -349,12 +303,13 @@ if __name__ == '__main__':
     dispersal = 1
     train_stimulus_dir = '/Users/Research/phonrulemodel/conditions/train'
     test_stimulus_dir = '/Users/Research/phonrulemodel/conditions/test'
-    output_dir = '/Users/Research/projects/phonrulemodel/'
+    train_output_dir = '/Users/Research/projects/phonrulemodel/trainsets/'
+    test_output_dir = '/Users/Research/projects/phonrulemodel/testsets/'
 
     estimates = load_estimates(input_fname)
 
-    train_data(train_stimulus_dir,estimates, output_dir)
-    test_data(test_stimulus_dir,estimates, output_dir)
+    train_data(train_stimulus_dir,estimates, train_output_dir)
+    test_data(test_stimulus_dir,estimates, test_output_dir)
     
     
     
