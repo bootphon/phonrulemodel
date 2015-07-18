@@ -19,6 +19,7 @@ from __future__ import division
 
 import cPickle as pickle
 
+from pprint import pformat
 import theano
 import theano.tensor as T
 from lasagne.nonlinearities import rectify, leaky_rectify, tanh, softmax, \
@@ -40,10 +41,21 @@ _standard_config = dict(
     output_f='softmax'
 )
 
-def load_model(fname):
+
+def load_model(fname, deterministic=False, batch_size=None, verbose=False):
     with open(fname, 'rb') as fin:
         params, weights = pickle.load(fin)
-    return build_model(weights=weights, **params)
+    if batch_size is not None:
+        params['batch_size'] = batch_size
+    if verbose:
+        print 'model parameters:'
+        print pformat(params)
+    return build_model(
+        weights=weights,
+        deterministic=deterministic,
+        **params
+    )
+
 
 def save_model(network, params, fname):
     weights = get_all_param_values(network)
@@ -57,6 +69,7 @@ def save_model(network, params, fname):
 
 
 def build_model(weights=None,
+                deterministic=False,
                 batch_size=100,
                 input_dim=1,
                 output_dim=1,
@@ -123,7 +136,7 @@ def build_model(weights=None,
             name='hidden_pre_{}'.format(ix+1),
             nonlinearity=hidden_f,
             W=GlorotUniform())
-        if dropout > 0:
+        if dropout > 0 and not deterministic:
             l_dropout = DropoutLayer(
                 l_hidden, p=dropout, name='dropout_pre_{}'.format(ix+1))
             last = l_dropout
@@ -143,7 +156,7 @@ def build_model(weights=None,
             name='hidden_post_{}'.format(ix+1),
             nonlinearity=hidden_f,
             W=GlorotUniform())
-        if dropout > 0:
+        if dropout > 0 and not deterministic:
             last = DropoutLayer(
                 l_hidden, p=dropout, name='dropout_post_{}'.format(ix+1))
         else:
