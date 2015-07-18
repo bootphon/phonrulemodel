@@ -13,186 +13,149 @@
 # ------------------------------------
 """bottleneck_features:
 
-Generate datasets containing bnf instead of MFCCs for all 
+Generate datasets containing bnf instead of MFCCs for all
 experimental conditions, both for training and test phase
 """
 from __future__ import division
-
+import numpy as np
 import glob
+import os
 import os.path as path
+import theano
 
-from lasagne.layers import \
-    get_output, get_all_layers, get_output_shape
+from lasagne.layers import get_output, get_all_layers, get_output_shape
 
 from dnn import load_model
+from util import verb_print
 
-import numpy as np
+VERBOSE = True
+
 
 def get_bottleneck_features(network, X):
+    """Assume X is of shape (N, 1000, 39)
+    """
+    X = X.astype(theano.config.floatX)
+    n_conditions, batch_size, n_features_in = X.shape
+
     layers = get_all_layers(network)
     bottleneck = [l for l in layers if l.name == 'bottleneck']
     if len(bottleneck) == 0:
         raise ValueError('network has no bottleneck')
     else:
         bottleneck = bottleneck[0]
-    bfeatures = get_output(bottleneck, X)
-    #print X.shape
-    #print bfeatures.eval().shape
-    return bfeatures
+    n_features_out = get_output_shape(bottleneck)[1]
+    X_out = np.zeros(
+        (n_conditions, batch_size, n_features_out),
+        dtype=theano.config.floatX
+    )
 
+    for i in xrange(n_conditions):
+        X_out[i, :, :] = get_output(bottleneck, X[i, :, :]).eval()
+    return X_out
 
 
 if __name__ == '__main__':
-    fmodel1 = '/Users/Research/projects/phonrulemodel/model_69_1.pkl'
-    fmodel2 = '/Users/Research/projects/phonrulemodel/model_69_2.pkl'
-    dir_trainsets ='/Users/Research/projects/phonrulemodel/trainsets'
-    dir_testsets = '/Users/Research/projects/phonrulemodel/testsets'
-    output_dir_train = '/Users/Research/projects/phonrulemodel/bnftrainsets/'
-    output_dir_test = '/Users/Research/projects/phonrulemodel/bnftestsets/'
-    
-    #Replace MFCCs in training datasets by bnf's
-    counter = 1
+    # fmodel1 = '/Users/Research/projects/phonrulemodel/model_69_1.pkl'
+    # fmodel2 = '/Users/Research/projects/phonrulemodel/model_69_2.pkl'
+    # dir_trainsets = '/Users/Research/projects/phonrulemodel/trainsets'
+    # dir_testsets = '/Users/Research/projects/phonrulemodel/testsets'
+    # output_dir_train = '/Users/Research/projects/phonrulemodel/bnftrainsets/'
+    # output_dir_test = '/Users/Research/projects/phonrulemodel/bnftestsets/'
 
-    for condition in glob.iglob(path.join(dir_trainsets, '*.npz')):
+    datadir = '/Users/mwv/data/'
+    fmodel1 = path.join(
+        datadir, 'phonrulemodel',
+        'acoustic_models_deltas_grid_1', 'model_69.pkl'
+    )
+    fmodel2 = path.join(
+        datadir, 'phonrulemodel',
+        'acoustic_models_deltas_grid_2', 'model_69.pkl'
+    )
+    dir_trainsets = path.join(
+        datadir, 'ingeborg_datasets', 'datasets_new', 'trainsets'
+    )
+    dir_testsets = path.join(
+        datadir, 'ingeborg_datasets', 'datasets_new', 'testsets'
+    )
+
+    output_dir_train = path.join(
+        datadir, 'ingeborg_datasets', 'bnf', 'bnftrainsets'
+    )
+    output_dir_test = path.join(
+        datadir, 'ingeborg_datasets', 'bnf', 'bnftestsets'
+    )
+    try:
+        os.makedirs(output_dir_train)
+    except OSError:
+        pass
+    try:
+        os.makedirs(output_dir_test)
+    except OSError:
+        pass
+
+    # Replace MFCCs in training datasets by bnf's
+    # 1. TRAINING
+    with verb_print('loading networks', VERBOSE):
+        model1 = load_model(fmodel1, deterministic=True, batch_size=1000)
+        model2 = load_model(fmodel2, deterministic=True, batch_size=1000)
+
+    print 'TRAINING'
+    conditions = glob.iglob(path.join(dir_trainsets, '*.npz'))
+    for condition_ix, condition in enumerate(conditions):
         dataset = np.load(condition)
-        print dataset
-        X, y, labels, info = dataset['X'], dataset['y'], dataset['labels'], dataset['info']
-     
-        #print X.shape[0]
-        #print X[0].shape
-        #print X[0][0]
-        #print X[127][0]
-        #print y.shape
-        #print info.shape
-        #Generate BNFs with model 1
-        model = load_model(fmodel1)
-        #for layer in get_all_layers(model):
-        #    print layer.name, get_output_shape(layer)
-        bnf_X = []
-        bnf_Y = []
-        bnf_info = []
+        X, y = dataset['X'], dataset['y']
+        for model_ix, model in enumerate([model1, model2]):
+            cname = path.splitext(path.basename(condition))[0]
+            with verb_print(' computing condition {}, model {}'.format(
+                    condition_ix, model_ix), VERBOSE):
+                X_bnf = get_bottleneck_features(model, X)
+                y_bnf = get_bottleneck_features(model, y)
+            with verb_print(' saving condition {}, model {}'.format(
+                    condition_ix, model_ix), VERBOSE):
+                output_file = path.join(
+                    output_dir_train,
+                    'train_condition{}model{}'.format(
+                        condition_ix+1,
+                        model_ix+1
+                    )
+                )
+                np.savez(
+                    output_file,
+                    X=X_bnf,
+                    y=y_bnf,
+                    labels=dataset['labels'],
+                    info=dataset['info']
+                )
 
-        length1 = X.shape[0]
-        #length1 = 1
-        length2 = X[0].shape[0]
-        #length2 = 1
-        for i in range(length1):
-            for j in range(length2):
-                #print j
-                bnfx = get_bottleneck_features(model, X[i][j])
-                bnf_X.append(bnfx)
-                bnfy = get_bottleneck_features(model, y[i][j])
-                bnf_Y.append(bnfy)
-                bnf_info.append(info[i])
-
-        #Save new datasets
-        output = output_dir_train + 'train_condition' + str(counter) + 'model1'
-        np.savez(output, X=bnf_X, y = bnf_Y, labels = labels, info = bnf_info)
-
-        #Generate BNFs with model 2
-        model = load_model(fmodel2)
-        #for layer in get_all_layers(model):
-        #    print layer.name, get_output_shape(layer)
-
-        bnf_X = []
-        bnf_Y = []
-        bnf_info = []
-        length1 = X.shape[0]
-        #length1 = 1
-        length2 = X[0].shape[0]
-        #length2 = 1
-        for i in range(length1):
-            for j in range(length2):
-                #print j
-                bnfx = get_bottleneck_features(model, X[i][j])
-                bnf_X.append(bnfx)
-                bnfy = get_bottleneck_features(model, y[i][j])
-                bnf_Y.append(bnfy)
-                bnf_info.append(info[i])
-
-        #Save new datasets
-        output = output_dir_train + 'train_condition' + str(counter) + 'model2'
-        np.savez(output, X=bnf_X, y = bnf_Y, labels = labels, info = bnf_info)
-     
-        counter = counter + 1
-
-    #repeat for testsets
-    counter = 1
-    for condition in glob.iglob(path.join(dir_testsets, '*.npz')):
+    # 2. TESTING
+    print 'TESTING'
+    conditions = glob.iglob(path.join(dir_testsets, '*.npz'))
+    for condition_ix, condition in enumerate(conditions):
         dataset = np.load(condition)
-        X1, X2, y1, y2, labels, info = dataset['X1'], dataset['X2'],dataset['y1'], dataset['y2'], dataset['labels'], dataset['info']
-
-       # print X1.shape
-       # print X2.shape
-       # print y1.shape
-       # print y2.shape
-       # print info.shape
-        #Generate BNFs with model 1
-        model = load_model(fmodel1)
-        #for layer in get_all_layers(model):
-        #    print layer.name, get_output_shape(layer)
-        
-        bnf_X1 = []
-        bnf_Y1 = []
-        bnf_X2 = []
-        bnf_Y2 = []
-        bnf_info = []
-        length1 = X1.shape[0]
-        #length1 = 1
-        length2 = X1[0].shape[0]
-        #length2 = 1
-        for i in range(length1):
-            for j in range(length2):
-                #print j
-                bnfx1 = get_bottleneck_features(model, X[i][j])
-                bnf_X1.append(bnfx1)
-                bnfy1 = get_bottleneck_features(model, y[i][j])
-                bnf_Y1.append(bnfy1)
-
-                bnfx2 = get_bottleneck_features(model, X[i][j])
-                bnf_X2.append(bnfx2)
-                bnfy2 = get_bottleneck_features(model, y[i][j])
-                bnf_Y2.append(bnfy2)
-
-                bnf_info.append(info[i])
-
-        #Save new datasets
-        output = output_dir_test + 'test_condition' + str(counter) + 'model1'
-        np.savez(output, X1=bnf_X1, X2 = bnf_X2, y1 = bnf_Y1, y2 = bnf_Y2, labels = labels, info = info)
-
-        #Generate BNFs with model 2
-        model = load_model(fmodel2)
-        #for layer in get_all_layers(model):
-        #    print layer.name, get_output_shape(layer)
-
-        bnf_X1 = []
-        bnf_Y1 = []
-        bnf_X2 = []
-        bnf_Y2 = []
-        bnf_info = []
-        length1 = X1.shape[0]
-        #length1 = 1
-        length2 = X1[0].shape[0]
-        #length2 = 1
-        for i in range(length1):
-            for j in range(length2):
-                #print j
-                bnfx1 = get_bottleneck_features(model, X[i][j])
-                bnf_X1.append(bnfx1)
-                bnfy1 = get_bottleneck_features(model, y[i][j])
-                bnf_Y1.append(bnfy1)
-
-                bnfx2 = get_bottleneck_features(model, X[i][j])
-                bnf_X2.append(bnfx2)
-                bnfy2 = get_bottleneck_features(model, y[i][j])
-                bnf_Y2.append(bnfy2)
-
-                bnf_info.append(info[i])
-
-
-        #Save new datasets
-        output = output_dir_test + 'test_condition' + str(counter) + 'model2'
-        np.savez(output, X1=bnf_X1, X2 = bnf_X2, y1 = bnf_Y1, y2 = bnf_Y2, labels = labels, info = info)
-     
-        counter = counter + 1
-   
+        X1, y1, X2, y2 = dataset['X1'], dataset['y1'], dataset['X2'], \
+            dataset['y2']
+        for model_ix, model in enumerate([model1, model2]):
+            cname = path.splitext(path.basename(condition))[0]
+            with verb_print(' computing condition {}, model {}'.format(
+                    condition_ix, model_ix), VERBOSE):
+                X1_bnf = get_bottleneck_features(model, X1)
+                y1_bnf = get_bottleneck_features(model, y1)
+                X2_bnf = get_bottleneck_features(model, X2)
+                y2_bnf = get_bottleneck_features(model, y2)
+            with verb_print(' saving condition {}, model {}'.format(
+                    condition_ix, model_ix), VERBOSE):
+                output_file = path.join(
+                    output_dir_train,
+                    'test_condition{}model{}'.format(
+                        condition_ix+1, model_ix+1
+                    )
+                )
+                np.savez(
+                    output_file,
+                    X1=X1_bnf,
+                    y1=y1_bnf,
+                    X2=X2_bnf,
+                    y2=y2_bnf,
+                    labels=dataset['labels'],
+                    info=dataset['info']
+                )
