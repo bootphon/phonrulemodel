@@ -32,130 +32,133 @@ VERBOSE = True
 
 
 def get_bottleneck_features(network, X):
-    """Assume X is of shape (N, 1000, 39)
+    """Run data X through network up to the layer that is called "bottleneck".
     """
     X = X.astype(theano.config.floatX)
-    n_conditions, batch_size, n_features_in = X.shape
+    n_samples, n_features_in = X.shape
 
     layers = get_all_layers(network)
+    if layers[0].shape[1] != n_features_in:
+        raise ValueError(
+            'expected {} features on network input, got {}'
+            .format(n_features_in, layers[0].shape[1])
+        )
     bottleneck = [l for l in layers if l.name == 'bottleneck']
     if len(bottleneck) == 0:
         raise ValueError('network has no bottleneck')
     else:
         bottleneck = bottleneck[0]
-    n_features_out = get_output_shape(bottleneck)[1]
-    X_out = np.zeros(
-        (n_conditions, batch_size, n_features_out),
-        dtype=theano.config.floatX
-    )
+    batch_size, n_features_out = get_output_shape(bottleneck)
 
-    for i in xrange(n_conditions):
-        X_out[i, :, :] = get_output(bottleneck, X[i, :, :]).eval()
-    return X_out
+    slices = [slice(batch_ix * batch_size, (batch_ix+1) * batch_size)
+              for batch_ix in xrange(n_samples // batch_size)]
+    return np.vstack(
+        (get_output(bottleneck, X[sl]).eval()
+         for sl in slices)
+    )
 
 
 if __name__ == '__main__':
-    # fmodel1 = '/Users/Research/projects/phonrulemodel/model_69_1.pkl'
-    # fmodel2 = '/Users/Research/projects/phonrulemodel/model_69_2.pkl'
-    # dir_trainsets = '/Users/Research/projects/phonrulemodel/trainsets'
-    # dir_testsets = '/Users/Research/projects/phonrulemodel/testsets'
-    # output_dir_train = '/Users/Research/projects/phonrulemodel/bnftrainsets/'
-    # output_dir_test = '/Users/Research/projects/phonrulemodel/bnftestsets/'
+    import argparse
 
-    datadir = '/Users/mwv/data/'
-    fmodel1 = path.join(
-        datadir, 'phonrulemodel',
-        'acoustic_models_deltas_grid_1', 'model_69.pkl'
-    )
-    fmodel2 = path.join(
-        datadir, 'phonrulemodel',
-        'acoustic_models_deltas_grid_2', 'model_69.pkl'
-    )
-    dir_trainsets = path.join(
-        datadir, 'ingeborg_datasets', 'datasets_new', 'trainsets'
-    )
-    dir_testsets = path.join(
-        datadir, 'ingeborg_datasets', 'datasets_new', 'testsets'
+    def parse_args():
+        parser = argparse.ArgumentParser(
+            prog='bottleneck_features.py',
+            description='convert mfcc features to bottleneck features'
+        )
+        parser.add_argument(
+            'model', metavar='MODEL',
+            nargs=1,
+            help='/path/to/model_file'
+        )
+        parser.add_argument(
+            'datapath', metavar='DATAPATH',
+            nargs=1,
+            help='/path/to/datapath')
+        parser.add_argument(
+            'outputpath', metavar='OUTPUTPATH',
+            nargs=1,
+            help='/path/to/outputpath'
+        )
+        parser.add_argument(
+            '-b', '--batch-size',
+            action='store',
+            dest='batch_size',
+            default=1000,
+            help='batch size'
+        )
+        parser.add_argument(
+            '-v', '--verbose',
+            action='store_true',
+            default=False,
+            dest='verbose',
+            help='talk more'
+        )
+        return vars(parser.parse_args())
+
+    args = parse_args()
+
+    model_fname = args['model'][0]
+    data_path = args['datapath'][0]
+    out_path = args['outputpath'][0]
+    batch_size = int(args['batch_size'])
+    verbose = args['verbose']
+
+    model = load_model(
+        model_fname,
+        deterministic=True,
+        batch_size=batch_size
     )
 
-    output_dir_train = path.join(
-        datadir, 'ingeborg_datasets', 'bnf', 'bnftrainsets'
-    )
-    output_dir_test = path.join(
-        datadir, 'ingeborg_datasets', 'bnf', 'bnftestsets'
-    )
     try:
-        os.makedirs(output_dir_train)
+        os.makedirs(out_path)
     except OSError:
         pass
+
+    # train sets
+    if verbose:
+        print 'TRAIN SETS'
+    train_path_in = path.join(data_path, 'train')
+    train_path_out = path.join(out_path, 'train')
     try:
-        os.makedirs(output_dir_test)
+        os.makedirs(train_path_out)
     except OSError:
         pass
+    for infile in glob.iglob(path.join(train_path_in, '*.npz')):
+        bname = path.splitext(path.basename(infile))[0]
+        with verb_print('loading data for {}'.format(bname), verbose):
+            data = np.load(infile)
+        with verb_print('computing bnf for {}'.format(bname), verbose):
+            X, Y = data['X'], data['Y']
+            X_bnf = get_bottleneck_features(model, X)
+            Y_bnf = get_bottleneck_features(model, Y)
+        with verb_print('saving bnf for {}'.format(bname), verbose):
+            np.savez(
+                path.join(train_path_out, bname + '.npz'),
+                X=X_bnf,
+                Y=Y_bnf
+            )
 
-    # Replace MFCCs in training datasets by bnf's
-    # 1. TRAINING
-    with verb_print('loading networks', VERBOSE):
-        model1 = load_model(fmodel1, deterministic=True, batch_size=1000)
-        model2 = load_model(fmodel2, deterministic=True, batch_size=1000)
-
-    print 'TRAINING'
-    conditions = glob.iglob(path.join(dir_trainsets, '*.npz'))
-    for condition_ix, condition in enumerate(conditions):
-        dataset = np.load(condition)
-        X, y = dataset['X'], dataset['y']
-        for model_ix, model in enumerate([model1, model2]):
-            cname = path.splitext(path.basename(condition))[0]
-            with verb_print(' computing condition {}, model {}'.format(
-                    condition_ix, model_ix), VERBOSE):
-                X_bnf = get_bottleneck_features(model, X)
-                y_bnf = get_bottleneck_features(model, y)
-            with verb_print(' saving condition {}, model {}'.format(
-                    condition_ix, model_ix), VERBOSE):
-                output_file = path.join(
-                    output_dir_train,
-                    'train_condition{}model{}'.format(
-                        condition_ix+1,
-                        model_ix+1
-                    )
-                )
-                np.savez(
-                    output_file,
-                    X=X_bnf,
-                    y=y_bnf,
-                    labels=dataset['labels'],
-                    info=dataset['info']
-                )
-
-    # 2. TESTING
-    print 'TESTING'
-    conditions = glob.iglob(path.join(dir_testsets, '*.npz'))
-    for condition_ix, condition in enumerate(conditions):
-        dataset = np.load(condition)
-        X1, y1, X2, y2 = dataset['X1'], dataset['y1'], dataset['X2'], \
-            dataset['y2']
-        for model_ix, model in enumerate([model1, model2]):
-            cname = path.splitext(path.basename(condition))[0]
-            with verb_print(' computing condition {}, model {}'.format(
-                    condition_ix, model_ix), VERBOSE):
-                X1_bnf = get_bottleneck_features(model, X1)
-                y1_bnf = get_bottleneck_features(model, y1)
-                X2_bnf = get_bottleneck_features(model, X2)
-                y2_bnf = get_bottleneck_features(model, y2)
-            with verb_print(' saving condition {}, model {}'.format(
-                    condition_ix, model_ix), VERBOSE):
-                output_file = path.join(
-                    output_dir_train,
-                    'test_condition{}model{}'.format(
-                        condition_ix+1, model_ix+1
-                    )
-                )
-                np.savez(
-                    output_file,
-                    X1=X1_bnf,
-                    y1=y1_bnf,
-                    X2=X2_bnf,
-                    y2=y2_bnf,
-                    labels=dataset['labels'],
-                    info=dataset['info']
-                )
+    # test sets
+    if verbose:
+        print 'TEST SETS'
+    test_path_in = path.join(data_path, 'test')
+    test_path_out = path.join(out_path, 'test')
+    try:
+        os.makedirs(test_path_out)
+    except OSError:
+        pass
+    for infile in glob.iglob(path.join(test_path_in, '*.npz')):
+        bname = path.splitext(path.basename(infile))[0]
+        with verb_print('loading data for {}'.format(bname), verbose):
+            data = np.load(infile)
+        with verb_print('computing bnf for {}'.format(bname), verbose):
+            X, Y = data['X'], data['Y']
+            X_bnf = get_bottleneck_features(model, X)
+            Y_bnf = get_bottleneck_features(model, Y)
+        with verb_print('saving bnf for {}'.format(bname), verbose):
+            np.savez(
+                path.join(test_path_out, bname + '.npz'),
+                X=X_bnf,
+                Y=Y_bnf
+            )
