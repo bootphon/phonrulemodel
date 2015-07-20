@@ -4,14 +4,15 @@
 
 from __future__ import division
 
+import os
+import os.path as path
+
 from itertools import count
 import time
 
 import numpy as np
 
-from sklearn.datasets import make_regression, make_friedman3, load_boston
-from sklearn.metrics import r2_score, explained_variance_score, \
-    mean_squared_error
+from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import MinMaxScaler
 
 import lasagne

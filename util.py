@@ -24,6 +24,7 @@ from collections import OrderedDict
 
 from tabulate import tabulate
 
+
 def save_history(history, filename):
     with open(filename, 'w') as fout:
         fout.write(','.join(history[0].keys()) + '\n')
