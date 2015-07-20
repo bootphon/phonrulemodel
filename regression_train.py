@@ -188,9 +188,9 @@ def train_loop(output_layer,
                max_epochs,
                patience=1000,
                learning_rate_start=0.01,
-               learning_rate_stop=float32(0.001),
-               momentum_start=float32(0.9),
-               momentum_stop=float32(0.999),
+               learning_rate_stop=0.001,
+               momentum_start=0.9,
+               momentum_stop=0.999,
                verbose=True):
     best_valid_loss = np.inf
     best_valid_epoch = 0
@@ -201,11 +201,16 @@ def train_loop(output_layer,
         np.log10(learning_rate_stop),
         max_epochs
     )
+    learning_rate_start = theano.shared(float32(learning_rate_start))
+    learning_rate_stop = theano.shared(float32(learning_rate_stop))
+
     momentums = np.linspace(
         momentum_start,
         momentum_stop,
         max_epochs
     )
+    momentum_start = theano.shared(float32(momentum_start))
+    momentum_stop = theano.shared(float32(momentum_stop))
 
     now = time.time()
     history = []
@@ -360,7 +365,7 @@ if __name__ == '__main__':
 
     config = dict(
         # data parameters
-        batch_size=32000,
+        batch_size=64000,
 
         # network parameters
         hidden_pre=[1000, 1000, 1000],
