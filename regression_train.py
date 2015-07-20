@@ -361,14 +361,14 @@ if __name__ == '__main__':
     verbose = args['verbose']
 
     with verb_print('loading data', verbose):
-        dataset = load_data(dataset_file, valid_prop=0.1)
+        dataset = load_data(dataset_file, valid_prop=0.2)
 
     config = dict(
         # data parameters
         batch_size=64000,
 
         # network parameters
-        hidden_pre=[1000, 1000, 1000],
+        hidden_pre=[25, 25, 25],
         dropout=0.5,
         hidden_f='rectify',
         bottleneck_size=0,
@@ -377,10 +377,10 @@ if __name__ == '__main__':
         output_f='linear',
 
         # training parameters
-        max_epochs=100000,
-        patience=1000,
+        max_epochs=10000,
+        patience=100,
         update='nesterov',
-        learning_rate_start=0.01,
+        learning_rate_start=0.1,
         learning_rate_stop=0.001,
         momentum_start=0.9,
         momentum_stop=0.999,
