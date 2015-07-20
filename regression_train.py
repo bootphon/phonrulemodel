@@ -84,16 +84,16 @@ def train_valid_split(X, valid_prop):
     nstim = 128  # number of transition stimuli in a dataset
     nsamples, nfeatures = X.shape
     blksz = nsamples // nstim
-    blksz_train = (1-valid_prop) * (nsamples // nstim)
-    blksz_valid = valid_prop * (nsamples // nstim)
+    blksz_train = int((1-valid_prop) * (nsamples // nstim))
+    blksz_valid = int(valid_prop * (nsamples // nstim))
     X_train = np.zeros((blksz_train*nstim, nfeatures), dtype=X.dtype)
     X_valid = np.zeros((blksz_valid*nstim, nfeatures), dtype=X.dtype)
     for blkix in xrange(nstim):
         X_blk = X[blkix*blksz: (blkix+1)*blksz, :]
         X_train[blkix*blksz_train: (blkix+1)*blksz_train, :] = \
-            X_blk[:blksz_train]
+            X_blk[:blksz_train, :]
         X_valid[blkix*blksz_valid: (blkix+1)*blksz_valid, :] = \
-            X_blk[blksz_valid:]
+            X_blk[blksz_train:, :]
     return X_train, X_valid
 
 
@@ -327,21 +327,32 @@ def main(dataset,
 
 
 if __name__ == '__main__':
-    args = dict(
-        dataset_file=[path.join(
-            os.environ['HOME'], 'data', 'ingeborg_datasets',
-            'datasets_regression_bnf', 'train',
-            'MH-ADS-A_P-IDS-A_exposure.npz'
-        )],
-        output_file=[path.join(
-            'regression_model', 'MH-ADS-A_P-IDS-A_exposure'
-        )],
-        verbose=True,
-    )
+    import argparse
+
+    def parse_args():
+        parser = argparse.ArgumentParser(
+            prog='regression_train.py',
+        )
+        parser.add_argument(
+            'dataset_file', metavar='DATASETFILE',
+            nargs=1,
+            help='input data file'
+        )
+        parser.add_argument(
+            'output_file', metavar='OUTPUTFILE',
+            nargs=1,
+            help='output file'
+        )
+        parser.add_argument('-v', '--verbose',
+                            action='store_true',
+                            default=False,
+                            help='talk more')
+        return vars(parser.parse_args())
+
+    args = parse_args()
 
     dataset_file = args['dataset_file'][0]
     output_file = args['output_file'][0]
-
     verbose = args['verbose']
 
     with verb_print('loading data', verbose):
