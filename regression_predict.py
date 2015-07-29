@@ -26,13 +26,16 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 import theano
 from lasagne.layers import get_output, get_all_layers, get_output_shape
-from sklearn.metrics import mean_squared_error
 import pandas as pd
 
 from dnn import load_model
 
 
 FilePair = namedtuple('FilePair', ['model', 'data'])
+
+
+def mse(y_true, y_pred):
+    return ((y_true - y_pred) ** 2).mean(axis=1)
 
 
 def gather_files(model_dir, data_dir):
@@ -137,7 +140,7 @@ if __name__ == '__main__':
             batch_size=batch_size
         )
         Y_pred = get_activations(model, X)
-        error = mean_squared_error(
+        error = mse(
             Y_true, Y_pred, multioutput='raw_values'
         )
         df = pd.DataFrame(
