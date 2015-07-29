@@ -141,7 +141,7 @@ if __name__ == '__main__':
         )
         Y_pred = get_activations(model, X)
         error = mse(
-            Y_true, Y_pred, multioutput='raw_values'
+            Y_true, Y_pred
         )
         df = pd.DataFrame(
             legend,
