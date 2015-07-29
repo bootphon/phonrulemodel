@@ -131,6 +131,11 @@ if __name__ == '__main__':
     batch_size = int(args['batch_size'])
     verbose = args['verbose']
 
+    try:
+        os.makedirs(output_dir)
+    except OSError:
+        pass
+
     file_pairs = gather_files(model_dir, data_dir)
     for bname, (model_file, data_file) in file_pairs.iteritems():
         X, Y_true, legend = load_data(data_file)
