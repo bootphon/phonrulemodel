@@ -100,7 +100,7 @@ def gen_test_single_condition(
     nsamples = len(df) * nsamples_per_stim
     X = np.empty((nsamples, NFEATURES), dtype=np.float32)
     Y = np.empty((nsamples, NFEATURES), dtype=np.float32)
-    legend = np.empty((nsamples, 4), dtype='S1')
+    legend = np.empty((nsamples, 5), dtype=np.string_)
 
     for ix, (phone1, phone2, register, congruency) in df.iterrows():
         start_ix = ix * nsamples_per_stim
@@ -109,8 +109,9 @@ def gen_test_single_condition(
             estimates[phone1][register].rvs(size=nsamples_per_stim)
         Y[start_ix: end_ix, :] = \
             estimates[phone1][register].rvs(size=nsamples_per_stim)
+        stimulus_id = '{}'.format(ix // 4)
         legend[start_ix: end_ix, :] = \
-            np.array([phone1, phone2, register, congruency])
+            np.array([phone1, phone2, stimulus_id, register, congruency])
     return X, Y, legend, df
 
 
