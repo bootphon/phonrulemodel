@@ -17,6 +17,7 @@
 
 from __future__ import division
 
+import os
 import os.path as path
 import pickle
 import glob
