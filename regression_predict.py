@@ -159,7 +159,7 @@ if __name__ == '__main__':
         df.to_csv(path.join(output_dir, bname + '.csv'), index=False)
 
         with open(path.join(output_dir, bname + '.pkl'), 'wb') as fout:
-            pickle.dump(dict(
+            pickle.dump(fout, dict(
                 Y_true=Y_true,
                 Y_pred=Y_pred,
                 error=error,
