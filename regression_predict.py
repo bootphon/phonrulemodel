@@ -39,13 +39,13 @@ def gather_files(model_dir, data_dir):
     model_files = {
         path.splitext(path.basename(fname))[0].replace('_exposure', ''):
         fname
-        for fname in glob.iglob(model_dir, '*.pkl')
+        for fname in glob.iglob(path.join(model_dir, '*.pkl'))
     }
 
     data_files = {
         path.splitext(path.basename(fname))[0].replace('_test', ''):
         fname
-        for fname in glob.iglob(data_dir, '*.npz')
+        for fname in glob.iglob(path.join(data_dir, '*.npz'))
     }
     assert (set(model_files.keys()) == set(data_files.keys()))
     files = {bname: FilePair(model_files[bname], data_files[bname])
