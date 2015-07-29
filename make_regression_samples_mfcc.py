@@ -51,6 +51,7 @@ def read_test_csv(fname):
     r = []
     for line in re.split(r'[\r\n]', s):
         part1, part2, congruency_ix, _ = line.strip().split(',')
+
         stim1, register = part1.split('-')
         stim2, _ = part2.split('-')  # registers always equal
         stim1, stim2 = stim1.lower(), stim2.lower()
@@ -88,35 +89,29 @@ def gen_train_single_condition(
 
 def gen_test_single_condition(
         cond_file, estimates, nsamples_per_stim, verbose=False):
-    df = read_test_csv(cond_file)
-    df_congruent = df[df.congruency == 'CONGRUENT']
-    df_incongruent = df[df.congruency == 'INCONGRUENT']
-    n_congruent = len(df_congruent)
-    n_incongruent = len(df_incongruent)
-    nsamples_congruent = n_congruent * nsamples_per_stim
-    nsamples_incongruent = n_incongruent * nsamples_per_stim
-    X_congruent = np.zeros((nsamples_congruent, NFEATURES))
-    Y_congruent = np.zeros((nsamples_congruent, NFEATURES))
-    for ix in xrange(n_congruent):
-        phone1, phone2, register, _ = df_congruent.iloc[ix]
-        start_ix = ix * nsamples_per_stim
-        end_ix = (ix+1) * nsamples_per_stim
-        X_congruent[start_ix: end_ix, :] = \
-            estimates[phone1][register].rvs(size=nsamples_per_stim)
-        Y_congruent[start_ix: end_ix, :] = \
-            estimates[phone2][register].rvs(size=nsamples_per_stim)
+    """Split out test by IDS/ADS, CONGRUENT/INCONGRUENT
 
-    X_incongruent = np.zeros((nsamples_incongruent, NFEATURES))
-    Y_incongruent = np.zeros((nsamples_incongruent, NFEATURES))
-    for ix in xrange(n_incongruent):
-        phone1, phone2, register, _ = df_incongruent.iloc[ix]
+    Returns
+    X, Y : ndarray (nsamples, nfeatures)
+    legend : ndarray (nsamples, 4) dtype='S1'
+
+    """
+    df = read_test_csv(cond_file)
+    nsamples = len(df) * nsamples_per_stim
+    X = np.empty((nsamples, NFEATURES), dtype=np.float32)
+    Y = np.empty((nsamples, NFEATURES), dtype=np.float32)
+    legend = np.empty((nsamples, 4), dtype='S1')
+
+    for ix, (phone1, phone2, register, congruency) in df.iterrows():
         start_ix = ix * nsamples_per_stim
         end_ix = (ix+1) * nsamples_per_stim
-        X_incongruent[start_ix: end_ix, :] = \
+        X[start_ix: end_ix, :] = \
             estimates[phone1][register].rvs(size=nsamples_per_stim)
-        Y_incongruent[start_ix: end_ix, :] = \
-            estimates[phone2][register].rvs(size=nsamples_per_stim)
-    return X_congruent, Y_congruent, X_incongruent, Y_incongruent, df
+        Y[start_ix: end_ix, :] = \
+            estimates[phone1][register].rvs(size=nsamples_per_stim)
+        legend[start_ix: end_ix, :] = \
+            np.array([phone1, phone2, register, congruency])
+    return X, Y, legend, df
 
 
 def gen_train(estimates, nsamples_per_stim, condition_files, output_dir,
@@ -140,20 +135,14 @@ def gen_test(estimates, nsamples_per_stim, condition_files, output_dir,
     for bname, fname in condition_files:
         with verb_print('generating test samples for {}'.format(bname),
                         verbose):
-            X_congruent, Y_congruent, X_incongruent, Y_incongruent, df = \
-                gen_test_single_condition(
-                    fname, estimates, nsamples_per_stim, verbose=verbose
-                )
+            X, Y, legend, df = gen_test_single_condition(
+                fname, estimates, nsamples_per_stim, verbose=verbose)
             df.to_csv(path.join(output_dir, bname + '.csv'), index=False)
             np.savez(
-                path.join(output_dir, bname + '_congruent.npz'),
-                X=X_congruent,
-                Y=Y_congruent
-            )
-            np.savez(
-                path.join(output_dir, bname + '_incongruent.npz'),
-                X=X_incongruent,
-                Y=Y_incongruent
+                path.join(output_dir, bname + '.npz'),
+                X=X,
+                Y=Y,
+                legend=legend
             )
 
 
