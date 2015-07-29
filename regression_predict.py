@@ -17,15 +17,40 @@
 
 from __future__ import division
 
+import os.path as path
+import pickle
+import glob
+from collections import namedtuple
 
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 import theano
 from lasagne.layers import get_output, get_all_layers, get_output_shape
 from sklearn.metrics import mean_squared_error
-import pickle
+import pandas as pd
 
 from dnn import load_model
+
+
+FilePair = namedtuple('FilePair', ['model', 'data'])
+
+
+def gather_files(model_dir, data_dir):
+    model_files = {
+        path.splitext(path.basename(fname))[0].replace('_exposure', ''):
+        fname
+        for fname in glob.iglob(model_dir, '*.pkl')
+    }
+
+    data_files = {
+        path.splitext(path.basename(fname))[0].replace('_test', ''):
+        fname
+        for fname in glob.iglob(data_dir, '*.npz')
+    }
+    assert (set(model_files.keys()) == set(data_files.keys()))
+    files = {bname: FilePair(model_files[bname], data_files[bname])
+             for bname in model_files}
+    return files
 
 
 def load_data(fname):
@@ -37,7 +62,7 @@ def load_data(fname):
     Y = MinMaxScaler(feature_range=(0, 1)).fit_transform(Y)
     Y = Y.astype(theano.config.floatX)
 
-    return X, Y
+    return X, Y, f['legend']
 
 
 def get_activations(network, X):
@@ -66,19 +91,19 @@ if __name__ == '__main__':
             prog='regression_predict.py',
         )
         parser.add_argument(
-            'model_file', metavar='MODELFILE',
+            'model_dir', metavar='MODELDIR',
             nargs=1,
-            help='trained network file'
+            help='directory with trained network files'
         )
         parser.add_argument(
-            'congruent_file', metavar='CONGRUENTFILE',
+            'data_dir', metavar='DATADIR',
             nargs=1,
-            help='dataset file with congruent data'
+            help='directory with data files'
         )
         parser.add_argument(
-            'incongruent_file', metavar='INCONGRUENTFILE',
+            'output_dir', metavar='OUTPUTDIR',
             nargs=1,
-            help='dataset file with incongruent data'
+            help='output directory'
         )
         parser.add_argument(
             '-b', '--batch-size',
@@ -97,39 +122,37 @@ if __name__ == '__main__':
 
     args = parse_args()
 
-    model_file = args['model_file'][0]
-    congruent_file = args['congruent_file'][0]
-    incongruent_file = args['incongruent_file'][0]
-    output_file = args['output_file'][0]
+    model_dir = args['model_dir'][0]
+    data_dir = args['data_dir'][0]
+    output_dir = args['output_dir'][0]
     batch_size = int(args['batch_size'])
+    verbose = args['verbose']
 
-    model = load_model(model_file, deterministic=True, batch_size=batch_size)
-    X_congruent, Y_congruent = load_data(congruent_file)
-    X_incongruent, Y_incongruent = load_data(incongruent_file)
+    file_pairs = gather_files(model_dir, data_dir)
+    for bname, (model_file, data_file) in file_pairs.iteritems():
+        X, Y_true, legend = load_data(data_file)
+        model = load_model(
+            model_file,
+            deterministic=True,
+            batch_size=batch_size
+        )
+        Y_pred = get_activations(model, X)
+        error = mean_squared_error(
+            Y_true, Y_pred, multioutput='raw_values'
+        )
+        df = pd.DataFrame(
+            legend,
+            columns=['phone1', 'phone2',
+                     'stimulusID', 'register',
+                     'congruency']
+        )
+        df['error'] = error
+        df.to_csv(path.join(output_dir, bname + '.csv'), index=False)
 
-    y_congruent = get_activations(model, X_congruent)
-    y_incongruent = get_activations(model, X_incongruent)
-
-    err_congruent = mean_squared_error(
-        Y_congruent, y_congruent, multioutput='raw_values'
-    )
-    err_incongruent = mean_squared_error(
-        Y_incongruent, y_incongruent, multioutput='raw_values'
-    )
-
-    print 'mse congruent:   {:.5f} (std: {:.5f})'.format(
-        err_congruent.mean(), err_congruent.std()
-    )
-    print 'mse incongruent: {:.5f} (std: {:.5f})'.format(
-        err_incongruent.mean(), err_congruent.std()
-    )
-
-    with open(output_file, 'wb') as fout:
-        pickle.dump(dict(
-            Y_congruent=Y_congruent,
-            Y_hat_congruent=y_congruent,
-            Y_incongruent=Y_incongruent,
-            Y_hat_incongruent=y_incongruent,
-            err_congruent=err_congruent,
-            err_incongruent=err_incongruent
-        ))
+        with open(path.join(output_dir, bname + '.pkl'), 'wb') as fout:
+            pickle.dump(dict(
+                Y_true=Y_true,
+                Y_pred=Y_pred,
+                error=error,
+                legend=legend
+            ))
