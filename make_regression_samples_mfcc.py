@@ -57,14 +57,10 @@ def read_test_csv(fname):
         stim1, stim2 = stim1.lower(), stim2.lower()
         if congruency_ix == 1:
             r.append((stim1[0], stim1[1], register, 'CONGRUENT'))
-            r.append((stim1[1], stim1[2], register, 'CONGRUENT'))
             r.append((stim2[0], stim2[1], register, 'INCONGRUENT'))
-            r.append((stim2[1], stim2[2], register, 'INCONGRUENT'))
         else:
             r.append((stim1[0], stim1[1], register, 'INCONGRUENT'))
-            r.append((stim1[1], stim1[2], register, 'INCONGRUENT'))
             r.append((stim2[0], stim2[1], register, 'CONGRUENT'))
-            r.append((stim2[1], stim2[2], register, 'CONGRUENT'))
     return pd.DataFrame(
         r,
         columns=['phone1', 'phone2', 'register', 'congruency']
@@ -108,7 +104,7 @@ def gen_test_single_condition(
         X[start_ix: end_ix, :] = \
             estimates[phone1][register].rvs(size=nsamples_per_stim)
         Y[start_ix: end_ix, :] = \
-            estimates[phone1][register].rvs(size=nsamples_per_stim)
+            estimates[phone2][register].rvs(size=nsamples_per_stim)
         stimulus_id = '{}'.format(ix // 4)
         legend[start_ix: end_ix, :] = \
             np.array([phone1, phone2, stimulus_id, register, congruency])
